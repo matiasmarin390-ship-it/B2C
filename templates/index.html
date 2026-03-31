@@ -1,0 +1,24 @@
+<form method="POST" enctype="multipart/form-data">
+    <select name="deposito">
+        <option value="monte_chingolo">Monte Chingolo</option>
+        <option value="roque_perez">Roque Perez</option>
+    </select>
+
+    <input type="file" name="file">
+    <button type="submit">Procesar</button>
+</form>
+
+{% if ruta %}
+<h2>Resumen</h2>
+<p>Distancia: {{ distancia }} km</p>
+<p>Tiempo: {{ tiempo }} min</p>
+
+<h3>Ruta</h3>
+<ul>
+{% for r in ruta %}
+    <li>{{ r.direccion }}</li>
+{% endfor %}
+</ul>
+
+<a href="{{ link }}" target="_blank">Ver ruta en Google Maps</a>
+{% endif %}
