@@ -3,6 +3,7 @@ import re
 
 LOCALIDADES = [
     "La Boca",
+    "CAPITAL FEDERAL",
     "Capital Federal",
     "San Cristóbal",
     "San Cristobal",
@@ -22,101 +23,159 @@ LOCALIDADES = [
     "Palermo",
 ]
 
-DIRECCION_KEYS = [
-    "Calle", "Avenida", "Av.", "Av", "Pasaje", "PJE", "Pje", "Tronador",
-    "Galicia", "Uriburu", "Monroe", "Freire", "Lavallol", "Querandies",
-    "Querandíes", "Nazarre", "Cordoba", "Córdoba", "Riestra", "Olavarría",
-    "Olavarria", "Catamarca"
-]
+def limpiar(texto: str) -> str:
+    texto = texto.replace("\xa0", " ")
+    texto = re.sub(r"\s+", " ", texto)
+    return texto.strip()
 
-def limpiar(s: str) -> str:
-    s = s.replace("\xa0", " ")
-    s = re.sub(r"\s+", " ", s)
-    return s.strip()
+def extraer_nro_hoja(texto: str):
+    m = re.search(r"Impresi[oó]n de Hoja de Ruta Nro\.\s*:\s*(\d+)", texto, re.IGNORECASE)
+    if m:
+        return m.group(1)
+    return None
 
-def detectar_localidad(linea: str):
-    for loc in LOCALIDADES:
+def detectar_localidad_en_linea(linea: str):
+    for loc in sorted(LOCALIDADES, key=len, reverse=True):
         if loc.lower() in linea.lower():
             return loc
     return None
 
-def contiene_direccion(linea: str):
-    tiene_key = any(k.lower() in linea.lower() for k in DIRECCION_KEYS)
-    tiene_num = bool(re.search(r"\b\d{2,5}\b", linea)) or " SN " in f" {linea.upper()} "
-    return tiene_key and tiene_num
+def extraer_domicilio_desde_linea(linea: str, localidad: str):
+    """
+    Toma el texto que está entre el domicilio y la localidad.
+    """
+    if not localidad:
+        return None
 
-def extraer_direccion(linea: str, localidad: str):
-    if localidad:
-        idx = linea.lower().find(localidad.lower())
-        if idx > 0:
-            base = linea[:idx].strip()
-        else:
-            base = linea
-    else:
-        base = linea
+    idx_loc = linea.lower().find(localidad.lower())
+    if idx_loc == -1:
+        return None
 
-    # busca desde la primera palabra de dirección
-    patron = re.compile(
-        r"(Calle|Avenida|Av\.|Av |Pasaje|PJE|Pje|Tronador|Galicia|Uriburu|Monroe|Freire|Lavallol|Querandies|Querandíes|Nazarre|Cordoba|Córdoba|Riestra|Olavarría|Olavarria|Catamarca).*$",
-        re.IGNORECASE
-    )
-    m = patron.search(base)
-    if m:
-        return limpiar(m.group(0))
-    return limpiar(base)
+    antes_localidad = linea[:idx_loc].strip()
 
-def extraer_cliente(linea: str, direccion: str):
-    idx = linea.lower().find(direccion.lower())
+    # Buscar el inicio del domicilio por patrones comunes
+    patrones = [
+        r"\bCalle\b",
+        r"\bAvenida\b",
+        r"\bAv\.\b",
+        r"\bAv\b",
+        r"\bPasaje\b",
+        r"\bPJE\b",
+        r"\bPje\b",
+        r"\bTronador\b",
+        r"\bGalicia\b",
+        r"\bUriburu\b",
+        r"\bMonroe\b",
+        r"\bFreire\b",
+        r"\bLavallol\b",
+        r"\bALEJO\b",
+        r"\bQuerandies\b",
+        r"\bQuerandíes\b",
+        r"\bNazarre\b",
+        r"\bCordoba\b",
+        r"\bC[oó]rdoba\b",
+        r"\bRiestra\b",
+        r"\bOlavarr[ií]a\b",
+        r"\bCatamarca\b",
+        r"\bElpidio\b",
+        r"\bLuis\b",
+        r"\bSanta\b",
+    ]
+
+    inicio = None
+    for patron in patrones:
+        m = re.search(patron, antes_localidad, re.IGNORECASE)
+        if m:
+            pos = m.start()
+            if inicio is None or pos < inicio:
+                inicio = pos
+
+    if inicio is None:
+        return None
+
+    domicilio = antes_localidad[inicio:].strip()
+    return limpiar(domicilio)
+
+def extraer_cliente_desde_linea(linea: str, domicilio: str):
+    idx = linea.lower().find(domicilio.lower())
     if idx > 0:
-        return limpiar(linea[:idx])
+        cliente = linea[:idx].strip()
+        return limpiar(cliente)
     return "Cliente"
 
-def extraer_paradas(file_storage):
+def es_linea_util(linea: str):
+    if not linea:
+        return False
+
+    bloqueados = [
+        "Impresión de Hoja de Ruta",
+        "Total Documentos",
+        "m3 Total Viaje",
+        "CHOFER",
+        "Firma:",
+        "Aclaración:",
+        "ARRIBO",
+        "SALIDA",
+        "CONTROLADOR",
+        "OBSERVACIONES",
+        "IMPORTANTE",
+        "Estado Vehículo",
+        "Recepcionó:",
+        "Custodia:",
+    ]
+
+    for b in bloqueados:
+        if b.lower() in linea.lower():
+            return False
+
+    return True
+
+def extraer_paradas_y_hoja(file_storage):
+    nro_hoja = None
     paradas = []
     vistos = set()
 
     with pdfplumber.open(file_storage) as pdf:
+        texto_total = []
+
         for page in pdf.pages:
             texto = page.extract_text() or ""
-            if not texto:
+            if texto:
+                texto_total.append(texto)
+
+        texto_total = "\n".join(texto_total)
+        nro_hoja = extraer_nro_hoja(texto_total)
+
+        lineas = texto_total.split("\n")
+
+        for linea in lineas:
+            linea = limpiar(linea)
+
+            if not es_linea_util(linea):
                 continue
 
-            lineas = texto.split("\n")
-            for linea in lineas:
-                linea = limpiar(linea)
+            localidad = detectar_localidad_en_linea(linea)
+            if not localidad:
+                continue
 
-                if not linea:
-                    continue
-                if "Impresión de Hoja de Ruta" in linea:
-                    continue
-                if "Total Documentos" in linea:
-                    continue
-                if "CHOFER" in linea:
-                    continue
-                if "CONTROLADOR" in linea:
-                    continue
-                if "IMPORTANTE" in linea:
-                    continue
+            domicilio = extraer_domicilio_desde_linea(linea, localidad)
+            if not domicilio:
+                continue
 
-                if not contiene_direccion(linea):
-                    continue
+            cliente = extraer_cliente_desde_linea(linea, domicilio)
 
-                localidad = detectar_localidad(linea) or "CABA"
-                direccion = extraer_direccion(linea, localidad)
-                cliente = extraer_cliente(linea, direccion)
+            direccion_mapa = f"{domicilio}, {localidad}, Buenos Aires, Argentina"
+            key = direccion_mapa.lower()
 
-                direccion_mapa = f"{direccion}, {localidad}, Buenos Aires, Argentina"
-                key = direccion_mapa.lower()
+            if key in vistos:
+                continue
+            vistos.add(key)
 
-                if key in vistos:
-                    continue
-                vistos.add(key)
+            paradas.append({
+                "cliente": cliente,
+                "direccion": domicilio,
+                "localidad": localidad,
+                "direccion_mapa": direccion_mapa
+            })
 
-                paradas.append({
-                    "cliente": cliente,
-                    "direccion": direccion,
-                    "localidad": localidad,
-                    "direccion_mapa": direccion_mapa
-                })
-
-    return paradas
+    return nro_hoja, paradas
