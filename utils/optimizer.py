@@ -20,7 +20,31 @@ ZONAS = {
     "Ciudad Autónoma": (-34.6037, -58.3816),
     "Ciudad Autonoma": (-34.6037, -58.3816),
     "Palermo": (-34.5733, -58.4300),
+    "Villa Lugano": (-34.6797, -58.4729),
+    "Ituzaingo": (-34.6584, -58.6746),
+    "Villa Udaondo": (-34.6648, -58.7080),
+    "Villa Real": (-34.6181, -58.5281),
+    "José C. Paz": (-34.5157, -58.7687),
+    "Jose C. Paz": (-34.5157, -58.7687),
+    "José Clemente Paz": (-34.5157, -58.7687),
+    "Sin localidad": None,
 }
+
+ALIASES_LOCALIDAD = {
+    "Jose Clemente P": "José C. Paz",
+    "Jose C. Paz": "José C. Paz",
+    "Jose C Paz": "José C. Paz",
+    "CAPITAL FEDERAL": "Capital Federal",
+    "Velez Sarsfield": "Vélez Sarsfield",
+}
+
+
+def normalizar_localidad(localidad):
+    if not localidad:
+        return "Sin localidad"
+    loc = localidad.strip()
+    return ALIASES_LOCALIDAD.get(loc, loc)
+
 
 def haversine_km(a, b):
     lat1, lon1 = a
@@ -36,14 +60,20 @@ def haversine_km(a, b):
     y = 2 * math.atan2(math.sqrt(x), math.sqrt(1 - x))
     return r * y
 
+
 def coords_de_parada(parada):
-    loc = parada.get("localidad")
-    if loc in ZONAS:
-        return ZONAS[loc], True
-    return None, False
+    loc = normalizar_localidad(parada.get("localidad", ""))
+    coords = ZONAS.get(loc)
+
+    if coords is None:
+        return None, False
+
+    return coords, True
+
 
 def generar_link_individual(texto):
     return f"https://www.google.com/maps/search/?api=1&query={quote(texto)}"
+
 
 def optimizar_ruta_basica(origen_coords, paradas):
     encontradas = []
@@ -51,9 +81,13 @@ def optimizar_ruta_basica(origen_coords, paradas):
 
     for p in paradas:
         item = dict(p)
+        item["localidad"] = normalizar_localidad(item.get("localidad", ""))
+        item["direccion_mapa"] = f"{item['direccion']}, {item['localidad']}, Buenos Aires, Argentina"
+
         coords, ok = coords_de_parada(item)
         item["coords"] = coords
         item["encontrada"] = ok
+
         if ok:
             encontradas.append(item)
         else:
@@ -85,6 +119,7 @@ def optimizar_ruta_basica(origen_coords, paradas):
 
     tiempo_total_min = round((distancia_total / 25) * 60) if distancia_total > 0 else 0
     return ruta, round(distancia_total, 2), tiempo_total_min
+
 
 def generar_link_maps(origen_texto, ruta):
     if not ruta:
