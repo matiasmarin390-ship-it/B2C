@@ -1,6 +1,6 @@
 import os
 from flask import Flask, render_template, request
-from utils.parser import extraer_paradas
+from utils.parser import extraer_paradas_y_hoja
 from utils.optimizer import optimizar_ruta_basica, generar_link_maps
 
 app = Flask(__name__)
@@ -29,11 +29,13 @@ def index():
             if not archivo or archivo.filename == "":
                 return "Error: no se adjuntó archivo", 400
 
-            paradas = extraer_paradas(archivo)
+            nro_hoja, paradas = extraer_paradas_y_hoja(archivo)
+
             if not paradas:
                 return "Error: no se detectaron paradas en la hoja de ruta", 400
 
             deposito = DEPOSITOS[deposito_key]
+
             ruta, distancia_total_km, tiempo_total_min = optimizar_ruta_basica(
                 deposito["coords"],
                 paradas
@@ -44,6 +46,7 @@ def index():
             return render_template(
                 "index.html",
                 deposito=deposito["nombre"],
+                nro_hoja=nro_hoja,
                 ruta=ruta,
                 distancia=distancia_total_km,
                 tiempo=tiempo_total_min,
@@ -56,6 +59,7 @@ def index():
     return render_template(
         "index.html",
         deposito=None,
+        nro_hoja=None,
         ruta=None,
         distancia=None,
         tiempo=None,
