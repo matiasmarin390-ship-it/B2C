@@ -3,150 +3,80 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ruteo de Camiones</title>
+    <title>Ruteo simple</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #f4f7fb;
-            margin: 0;
-            padding: 0;
+        body { font-family: Arial, sans-serif; background: #f4f6f8; margin: 0; padding: 0; }
+        .container { max-width: 1100px; margin: 30px auto; background: #fff; padding: 24px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.08); }
+        h1, h2, h3 { color: #1d3557; }
+        .row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+        .field { flex: 1; min-width: 260px; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; }
+        select, input[type=file], button {
+            width: 100%; padding: 12px; border: 1px solid #d0d7de; border-radius: 8px; font-size: 15px;
         }
-        .container {
-            max-width: 1100px;
-            margin: 40px auto;
-            background: #ffffff;
-            padding: 30px;
-            border-radius: 14px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+        button { background: #1d4ed8; color: #fff; border: none; cursor: pointer; font-weight: bold; }
+        button:hover { background: #1e40af; }
+        .summary { background: #eef5ff; padding: 16px; border-radius: 10px; margin: 20px 0; border-left: 5px solid #1d4ed8; }
+        .card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; margin-bottom: 12px; background: #fafafa; }
+        .small { color: #555; font-size: 14px; }
+        a { color: #1d4ed8; text-decoration: none; font-weight: bold; }
+        a:hover { text-decoration: underline; }
+        .btn-link {
+            display: inline-block; background: #16a34a; color: #fff; padding: 12px 16px;
+            border-radius: 8px; margin-top: 10px;
         }
-        h1, h2, h3 {
-            color: #1f3c88;
-        }
-        .form-row {
-            display: flex;
-            gap: 16px;
-            flex-wrap: wrap;
-            align-items: end;
-            margin-bottom: 20px;
-        }
-        .field {
-            flex: 1;
-            min-width: 240px;
-        }
-        label {
-            display: block;
-            font-weight: bold;
-            margin-bottom: 8px;
-        }
-        select, input[type="file"], button {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #cfd8e3;
-            border-radius: 8px;
-            font-size: 15px;
-        }
-        button {
-            background: #1f3c88;
-            color: white;
-            font-weight: bold;
-            cursor: pointer;
-            border: none;
-        }
-        button:hover {
-            background: #17306d;
-        }
-        .summary {
-            background: #eef4ff;
-            border-left: 5px solid #1f3c88;
-            padding: 16px;
-            border-radius: 8px;
-            margin-top: 24px;
-            margin-bottom: 24px;
-        }
-        .card {
-            border: 1px solid #dde5ef;
-            border-radius: 10px;
-            padding: 16px;
-            margin-bottom: 12px;
-            background: #fafcff;
-        }
-        .small {
-            color: #555;
-            font-size: 14px;
-        }
-        a {
-            color: #1f3c88;
-            text-decoration: none;
-            font-weight: bold;
-        }
-        a:hover {
-            text-decoration: underline;
-        }
-        .top-link {
-            display: inline-block;
-            margin-top: 10px;
-            padding: 12px 16px;
-            background: #28a745;
-            color: white;
-            border-radius: 8px;
-        }
-        .top-link:hover {
-            background: #218838;
-            text-decoration: none;
-        }
+        .btn-link:hover { background: #15803d; text-decoration: none; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Ruteador de Hoja de Ruta</h1>
-        <p>Cargá la hoja de ruta en PDF y seleccioná el depósito de salida para obtener el recorrido optimizado.</p>
+        <h1>Ruteador de hoja de ruta</h1>
+        <p>Elegí el depósito, cargá el PDF y obtené un recorrido básico ordenado por cercanía.</p>
 
         <form method="POST" enctype="multipart/form-data">
-            <div class="form-row">
+            <div class="row">
                 <div class="field">
-                    <label for="deposito">Depósito de salida</label>
+                    <label for="deposito">Depósito</label>
                     <select name="deposito" id="deposito" required>
-                        <option value="">Seleccionar depósito</option>
+                        <option value="">Seleccionar</option>
                         <option value="monte_chingolo">Monte Chingolo</option>
                         <option value="roque_perez">Roque Pérez</option>
                     </select>
                 </div>
 
                 <div class="field">
-                    <label for="file">Adjuntar hoja de ruta (PDF)</label>
+                    <label for="file">Hoja de ruta (PDF)</label>
                     <input type="file" name="file" id="file" accept=".pdf" required>
                 </div>
 
                 <div class="field">
                     <label>&nbsp;</label>
-                    <button type="submit">Procesar ruteo</button>
+                    <button type="submit">Generar ruta</button>
                 </div>
             </div>
         </form>
 
         {% if ruta %}
             <div class="summary">
-                <h2>Resumen del recorrido</h2>
+                <h2>Resumen</h2>
                 <p><strong>Depósito:</strong> {{ deposito }}</p>
-                <p><strong>Cantidad de paradas:</strong> {{ ruta|length }}</p>
+                <p><strong>Paradas:</strong> {{ ruta|length }}</p>
                 <p><strong>Distancia estimada:</strong> {{ distancia }} km</p>
                 <p><strong>Tiempo estimado:</strong> {{ tiempo }} minutos</p>
 
                 {% if link %}
-                    <a class="top-link" href="{{ link }}" target="_blank">Abrir recorrido completo en Google Maps</a>
+                    <a class="btn-link" href="{{ link }}" target="_blank">Abrir recorrido completo en Google Maps</a>
                 {% endif %}
             </div>
 
-            <h3>Orden sugerido de entrega</h3>
+            <h3>Orden sugerido</h3>
 
-            {% for punto in ruta %}
+            {% for p in ruta %}
                 <div class="card">
-                    <p><strong>{{ punto.orden }}. {{ punto.direccion }}</strong></p>
-                    <p class="small">Distancia estimada desde la parada anterior: {{ punto.distancia_desde_anterior_km }} km</p>
-
-                    {% if punto.link_individual %}
-                        <p><a href="{{ punto.link_individual }}" target="_blank">Ver ubicación individual</a></p>
-                    {% endif %}
+                    <p><strong>{{ p.orden }}. {{ p.cliente }}</strong></p>
+                    <p>{{ p.direccion }} - {{ p.localidad }}</p>
+                    <p class="small">Distancia estimada desde la parada anterior: {{ p.distancia_desde_anterior_km }} km</p>
+                    <p><a href="{{ p.link_individual }}" target="_blank">Ver ubicación individual</a></p>
                 </div>
             {% endfor %}
         {% endif %}
