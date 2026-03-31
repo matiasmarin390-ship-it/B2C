@@ -2,7 +2,7 @@ import os
 from flask import Flask, render_template, request
 from utils.parser import extraer_direcciones
 from utils.geocoding import geocodificar
-from utils.optimizer import optimizar_ruta, generar_link_maps
+from utils.optimizer import optimizar_ruta, generar_link_maps, enriquecer_ruta_con_links
 
 app = Flask(__name__)
 
@@ -44,14 +44,16 @@ def index():
             if not puntos:
                 return "Error: no se pudieron geocodificar las direcciones", 400
 
-            origen = geocodificar(DEPOSITOS[deposito])
+            origen_texto = DEPOSITOS[deposito]
+            origen = geocodificar(origen_texto)
 
             if not origen:
                 return "Error: no se pudo geocodificar el depósito de salida", 400
 
             ruta_optimizada, distancia_total, tiempo_total = optimizar_ruta(origen, puntos)
+            ruta_optimizada = enriquecer_ruta_con_links(ruta_optimizada)
 
-            link_maps = generar_link_maps(origen, ruta_optimizada) if ruta_optimizada else None
+            link_maps = generar_link_maps(origen, ruta_optimizada)
 
             return render_template(
                 "index.html",
@@ -59,13 +61,20 @@ def index():
                 distancia=distancia_total,
                 tiempo=tiempo_total,
                 link=link_maps,
-                deposito=DEPOSITOS[deposito]
+                deposito=origen_texto
             )
 
         except Exception as e:
             return f"Error interno: {str(e)}", 500
 
-    return render_template("index.html", ruta=None, distancia=None, tiempo=None, link=None)
+    return render_template(
+        "index.html",
+        ruta=None,
+        distancia=None,
+        tiempo=None,
+        link=None,
+        deposito=None
+    )
 
 @app.route("/health")
 def health():
