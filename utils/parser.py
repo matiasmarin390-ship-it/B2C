@@ -1,72 +1,78 @@
 import pdfplumber
 import re
 
-PALABRAS_DIRECCION = [
-    "calle", "av", "av.", "avenida", "pasaje", "pje", "pje.",
-    "tronador", "galicia", "uriburu", "monroe", "freire",
-    "lavallol", "querandies", "querandíes", "nazarre", "cordoba",
-    "córdoba", "riestra", "olavarría", "olavarria", "catamarca"
+LOCALIDADES = [
+    "La Boca",
+    "Capital Federal",
+    "San Cristóbal",
+    "San Cristobal",
+    "Almagro",
+    "Villa Santa Rit",
+    "Villa Santa Rita",
+    "Villa Crespo",
+    "Parque Chas",
+    "Belgrano",
+    "Flores",
+    "Velez Sarsfield",
+    "Vélez Sarsfield",
+    "Caballito",
+    "Devoto",
+    "Ciudad Autónoma",
+    "Ciudad Autonoma",
+    "Palermo",
 ]
 
-LOCALIDADES_CONOCIDAS = [
-    "la boca",
-    "capital federal",
-    "san cristóbal",
-    "san cristobal",
-    "almagro",
-    "villa santa rit",
-    "villa santa rita",
-    "villa crespo",
-    "parque chas",
-    "belgrano",
-    "flores",
-    "velez sarsfield",
-    "vélez sarsfield",
-    "caballito",
-    "devoto",
-    "ciudad autónoma",
-    "ciudad autonoma",
-    "palermo"
+DIRECCION_KEYS = [
+    "Calle", "Avenida", "Av.", "Av", "Pasaje", "PJE", "Pje", "Tronador",
+    "Galicia", "Uriburu", "Monroe", "Freire", "Lavallol", "Querandies",
+    "Querandíes", "Nazarre", "Cordoba", "Córdoba", "Riestra", "Olavarría",
+    "Olavarria", "Catamarca"
 ]
 
-def limpiar_texto(texto: str) -> str:
-    texto = texto.replace("\xa0", " ")
-    texto = re.sub(r"\s+", " ", texto)
-    return texto.strip()
+def limpiar(s: str) -> str:
+    s = s.replace("\xa0", " ")
+    s = re.sub(r"\s+", " ", s)
+    return s.strip()
 
-def parece_direccion(linea: str) -> bool:
-    l = linea.lower()
-    tiene_palabra = any(p in l for p in PALABRAS_DIRECCION)
-    tiene_numero = bool(re.search(r"\b\d{2,5}\b", l)) or " sn " in f" {l} "
-    return tiene_palabra and tiene_numero
+def detectar_localidad(linea: str):
+    for loc in LOCALIDADES:
+        if loc.lower() in linea.lower():
+            return loc
+    return None
 
-def extraer_localidad(linea: str) -> str:
-    l = linea.lower()
-    for loc in LOCALIDADES_CONOCIDAS:
-        if loc in l:
-            return loc.title()
-    return "CABA"
+def contiene_direccion(linea: str):
+    tiene_key = any(k.lower() in linea.lower() for k in DIRECCION_KEYS)
+    tiene_num = bool(re.search(r"\b\d{2,5}\b", linea)) or " SN " in f" {linea.upper()} "
+    return tiene_key and tiene_num
 
-def normalizar_direccion(direccion: str, localidad: str) -> str:
-    direccion = limpiar_texto(direccion)
+def extraer_direccion(linea: str, localidad: str):
+    if localidad:
+        idx = linea.lower().find(localidad.lower())
+        if idx > 0:
+            base = linea[:idx].strip()
+        else:
+            base = linea
+    else:
+        base = linea
 
-    reemplazos = {
-        " av. ": " Avenida ",
-        " av ": " Avenida ",
-        " pje ": " Pasaje ",
-        " pje. ": " Pasaje ",
-        " calle ": " Calle ",
-    }
+    # busca desde la primera palabra de dirección
+    patron = re.compile(
+        r"(Calle|Avenida|Av\.|Av |Pasaje|PJE|Pje|Tronador|Galicia|Uriburu|Monroe|Freire|Lavallol|Querandies|Querandíes|Nazarre|Cordoba|Córdoba|Riestra|Olavarría|Olavarria|Catamarca).*$",
+        re.IGNORECASE
+    )
+    m = patron.search(base)
+    if m:
+        return limpiar(m.group(0))
+    return limpiar(base)
 
-    texto = f" {direccion} "
-    for viejo, nuevo in reemplazos.items():
-        texto = texto.replace(viejo, nuevo)
+def extraer_cliente(linea: str, direccion: str):
+    idx = linea.lower().find(direccion.lower())
+    if idx > 0:
+        return limpiar(linea[:idx])
+    return "Cliente"
 
-    texto = limpiar_texto(texto)
-    return f"{texto}, {localidad}, Buenos Aires, Argentina"
-
-def extraer_direcciones(file_storage) -> list[str]:
-    direcciones = []
+def extraer_paradas(file_storage):
+    paradas = []
     vistos = set()
 
     with pdfplumber.open(file_storage) as pdf:
@@ -76,45 +82,41 @@ def extraer_direcciones(file_storage) -> list[str]:
                 continue
 
             lineas = texto.split("\n")
-
             for linea in lineas:
-                linea_limpia = limpiar_texto(linea)
+                linea = limpiar(linea)
 
-                if not linea_limpia:
+                if not linea:
+                    continue
+                if "Impresión de Hoja de Ruta" in linea:
+                    continue
+                if "Total Documentos" in linea:
+                    continue
+                if "CHOFER" in linea:
+                    continue
+                if "CONTROLADOR" in linea:
+                    continue
+                if "IMPORTANTE" in linea:
                     continue
 
-                if not parece_direccion(linea_limpia):
+                if not contiene_direccion(linea):
                     continue
 
-                if "impresión de hoja de ruta" in linea_limpia.lower():
+                localidad = detectar_localidad(linea) or "CABA"
+                direccion = extraer_direccion(linea, localidad)
+                cliente = extraer_cliente(linea, direccion)
+
+                direccion_mapa = f"{direccion}, {localidad}, Buenos Aires, Argentina"
+                key = direccion_mapa.lower()
+
+                if key in vistos:
                     continue
+                vistos.add(key)
 
-                if "total documentos" in linea_limpia.lower():
-                    continue
+                paradas.append({
+                    "cliente": cliente,
+                    "direccion": direccion,
+                    "localidad": localidad,
+                    "direccion_mapa": direccion_mapa
+                })
 
-                if "controlador" in linea_limpia.lower():
-                    continue
-
-                localidad = extraer_localidad(linea_limpia)
-
-                # intenta extraer solo el fragmento de dirección
-                # desde la primera palabra de tipo calle/av/pasaje hasta antes de la localidad
-                patron = re.compile(
-                    r"(?i)\b(calle|av\.?|avenida|pasaje|pje\.?)\b.*?(?=(la boca|capital federal|san cristóbal|san cristobal|almagro|villa santa rit|villa santa rita|villa crespo|parque chas|belgrano|flores|velez sarsfield|vélez sarsfield|caballito|devoto|ciudad autónoma|ciudad autonoma|palermo)\b|$)"
-                )
-                m = patron.search(linea_limpia)
-
-                if m:
-                    direccion_raw = limpiar_texto(m.group(0))
-                else:
-                    # fallback: usar toda la línea
-                    direccion_raw = linea_limpia
-
-                direccion_final = normalizar_direccion(direccion_raw, localidad)
-
-                key = direccion_final.lower()
-                if key not in vistos:
-                    vistos.add(key)
-                    direcciones.append(direccion_final)
-
-    return direcciones
+    return paradas
