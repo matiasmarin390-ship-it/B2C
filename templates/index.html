@@ -1,24 +1,155 @@
-<form method="POST" enctype="multipart/form-data">
-    <select name="deposito">
-        <option value="monte_chingolo">Monte Chingolo</option>
-        <option value="roque_perez">Roque Perez</option>
-    </select>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ruteo de Camiones</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f7fb;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 40px auto;
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 14px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+        }
+        h1, h2, h3 {
+            color: #1f3c88;
+        }
+        .form-row {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            align-items: end;
+            margin-bottom: 20px;
+        }
+        .field {
+            flex: 1;
+            min-width: 240px;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        select, input[type="file"], button {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #cfd8e3;
+            border-radius: 8px;
+            font-size: 15px;
+        }
+        button {
+            background: #1f3c88;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+        }
+        button:hover {
+            background: #17306d;
+        }
+        .summary {
+            background: #eef4ff;
+            border-left: 5px solid #1f3c88;
+            padding: 16px;
+            border-radius: 8px;
+            margin-top: 24px;
+            margin-bottom: 24px;
+        }
+        .card {
+            border: 1px solid #dde5ef;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 12px;
+            background: #fafcff;
+        }
+        .small {
+            color: #555;
+            font-size: 14px;
+        }
+        a {
+            color: #1f3c88;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .top-link {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 12px 16px;
+            background: #28a745;
+            color: white;
+            border-radius: 8px;
+        }
+        .top-link:hover {
+            background: #218838;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Ruteador de Hoja de Ruta</h1>
+        <p>Cargá la hoja de ruta en PDF y seleccioná el depósito de salida para obtener el recorrido optimizado.</p>
 
-    <input type="file" name="file">
-    <button type="submit">Procesar</button>
-</form>
+        <form method="POST" enctype="multipart/form-data">
+            <div class="form-row">
+                <div class="field">
+                    <label for="deposito">Depósito de salida</label>
+                    <select name="deposito" id="deposito" required>
+                        <option value="">Seleccionar depósito</option>
+                        <option value="monte_chingolo">Monte Chingolo</option>
+                        <option value="roque_perez">Roque Pérez</option>
+                    </select>
+                </div>
 
-{% if ruta %}
-<h2>Resumen</h2>
-<p>Distancia: {{ distancia }} km</p>
-<p>Tiempo: {{ tiempo }} min</p>
+                <div class="field">
+                    <label for="file">Adjuntar hoja de ruta (PDF)</label>
+                    <input type="file" name="file" id="file" accept=".pdf" required>
+                </div>
 
-<h3>Ruta</h3>
-<ul>
-{% for r in ruta %}
-    <li>{{ r.direccion }}</li>
-{% endfor %}
-</ul>
+                <div class="field">
+                    <label>&nbsp;</label>
+                    <button type="submit">Procesar ruteo</button>
+                </div>
+            </div>
+        </form>
 
-<a href="{{ link }}" target="_blank">Ver ruta en Google Maps</a>
-{% endif %}
+        {% if ruta %}
+            <div class="summary">
+                <h2>Resumen del recorrido</h2>
+                <p><strong>Depósito:</strong> {{ deposito }}</p>
+                <p><strong>Cantidad de paradas:</strong> {{ ruta|length }}</p>
+                <p><strong>Distancia estimada:</strong> {{ distancia }} km</p>
+                <p><strong>Tiempo estimado:</strong> {{ tiempo }} minutos</p>
+
+                {% if link %}
+                    <a class="top-link" href="{{ link }}" target="_blank">Abrir recorrido completo en Google Maps</a>
+                {% endif %}
+            </div>
+
+            <h3>Orden sugerido de entrega</h3>
+
+            {% for punto in ruta %}
+                <div class="card">
+                    <p><strong>{{ punto.orden }}. {{ punto.direccion }}</strong></p>
+                    <p class="small">Distancia estimada desde la parada anterior: {{ punto.distancia_desde_anterior_km }} km</p>
+
+                    {% if punto.link_individual %}
+                        <p><a href="{{ punto.link_individual }}" target="_blank">Ver ubicación individual</a></p>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+</body>
+</html>
