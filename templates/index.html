@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ruteo simple</title>
+    <title>Ruteador de hoja de ruta</title>
     <style>
         body { font-family: Arial, sans-serif; background: #f4f6f8; margin: 0; padding: 0; }
         .container { max-width: 1100px; margin: 30px auto; background: #fff; padding: 24px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.08); }
@@ -19,6 +19,8 @@
         .summary { background: #eef5ff; padding: 16px; border-radius: 10px; margin: 20px 0; border-left: 5px solid #1d4ed8; }
         .card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; margin-bottom: 12px; background: #fafafa; }
         .small { color: #555; font-size: 14px; }
+        .warning { color: #b91c1c; font-weight: bold; }
+        .ok { color: #15803d; font-weight: bold; }
         a { color: #1d4ed8; text-decoration: none; font-weight: bold; }
         a:hover { text-decoration: underline; }
         .btn-link {
@@ -31,7 +33,7 @@
 <body>
     <div class="container">
         <h1>Ruteador de hoja de ruta</h1>
-        <p>Elegí el depósito, cargá el PDF y obtené un recorrido básico ordenado por cercanía.</p>
+        <p>Elegí el depósito, cargá el PDF y obtené un recorrido aproximado ordenado por cercanía.</p>
 
         <form method="POST" enctype="multipart/form-data">
             <div class="row">
@@ -59,6 +61,7 @@
         {% if ruta %}
             <div class="summary">
                 <h2>Resumen</h2>
+                <p><strong>Hoja de ruta:</strong> {{ nro_hoja if nro_hoja else 'No detectada' }}</p>
                 <p><strong>Depósito:</strong> {{ deposito }}</p>
                 <p><strong>Paradas:</strong> {{ ruta|length }}</p>
                 <p><strong>Distancia estimada:</strong> {{ distancia }} km</p>
@@ -75,7 +78,14 @@
                 <div class="card">
                     <p><strong>{{ p.orden }}. {{ p.cliente }}</strong></p>
                     <p>{{ p.direccion }} - {{ p.localidad }}</p>
-                    <p class="small">Distancia estimada desde la parada anterior: {{ p.distancia_desde_anterior_km }} km</p>
+
+                    {% if p.encontrada %}
+                        <p class="ok">Ubicación encontrada</p>
+                        <p class="small">Distancia estimada desde la parada anterior: {{ p.distancia_desde_anterior_km }} km</p>
+                    {% else %}
+                        <p class="warning">No se encuentra. Se envía al final del recorrido.</p>
+                    {% endif %}
+
                     <p><a href="{{ p.link_individual }}" target="_blank">Ver ubicación individual</a></p>
                 </div>
             {% endfor %}
