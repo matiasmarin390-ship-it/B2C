@@ -21,6 +21,7 @@
         .small { color: #555; font-size: 14px; }
         .warning { color: #b91c1c; font-weight: bold; }
         .ok { color: #15803d; font-weight: bold; }
+        .error { background:#fee2e2; color:#991b1b; padding:12px; border-radius:8px; margin:16px 0; }
         a { color: #1d4ed8; text-decoration: none; font-weight: bold; }
         a:hover { text-decoration: underline; }
         .btn-link {
@@ -34,6 +35,10 @@
     <div class="container">
         <h1>Ruteador de hoja de ruta</h1>
         <p>Elegí el depósito, cargá el PDF y obtené un recorrido aproximado ordenado por cercanía.</p>
+
+        {% if error %}
+            <div class="error">{{ error }}</div>
+        {% endif %}
 
         <form method="POST" enctype="multipart/form-data">
             <div class="row">
