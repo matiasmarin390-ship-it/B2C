@@ -1,181 +1,110 @@
-import pdfplumber
-import re
+import math
+from urllib.parse import quote
 
-LOCALIDADES = [
-    "La Boca",
-    "CAPITAL FEDERAL",
-    "Capital Federal",
-    "San Cristóbal",
-    "San Cristobal",
-    "Almagro",
-    "Villa Santa Rit",
-    "Villa Santa Rita",
-    "Villa Crespo",
-    "Parque Chas",
-    "Belgrano",
-    "Flores",
-    "Velez Sarsfield",
-    "Vélez Sarsfield",
-    "Caballito",
-    "Devoto",
-    "Ciudad Autónoma",
-    "Ciudad Autonoma",
-    "Palermo",
-]
+ZONAS = {
+    "La Boca": (-34.6347, -58.3648),
+    "Capital Federal": (-34.6037, -58.3816),
+    "San Cristóbal": (-34.6220, -58.4008),
+    "San Cristobal": (-34.6220, -58.4008),
+    "Almagro": (-34.6098, -58.4219),
+    "Villa Santa Rit": (-34.6200, -58.4900),
+    "Villa Santa Rita": (-34.6200, -58.4900),
+    "Villa Crespo": (-34.5990, -58.4370),
+    "Parque Chas": (-34.5878, -58.4846),
+    "Belgrano": (-34.5621, -58.4563),
+    "Flores": (-34.6283, -58.4630),
+    "Velez Sarsfield": (-34.6328, -58.4928),
+    "Vélez Sarsfield": (-34.6328, -58.4928),
+    "Caballito": (-34.6186, -58.4424),
+    "Devoto": (-34.6026, -58.5107),
+    "Ciudad Autónoma": (-34.6037, -58.3816),
+    "Ciudad Autonoma": (-34.6037, -58.3816),
+    "Palermo": (-34.5733, -58.4300),
+}
 
-def limpiar(texto: str) -> str:
-    texto = texto.replace("\xa0", " ")
-    texto = re.sub(r"\s+", " ", texto)
-    return texto.strip()
+def haversine_km(a, b):
+    lat1, lon1 = a
+    lat2, lon2 = b
+    r = 6371.0
 
-def extraer_nro_hoja(texto: str):
-    m = re.search(r"Impresi[oó]n de Hoja de Ruta Nro\.\s*:\s*(\d+)", texto, re.IGNORECASE)
-    if m:
-        return m.group(1)
-    return None
+    p1 = math.radians(lat1)
+    p2 = math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
 
-def detectar_localidad_en_linea(linea: str):
-    for loc in sorted(LOCALIDADES, key=len, reverse=True):
-        if loc.lower() in linea.lower():
-            return loc
-    return None
+    x = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    y = 2 * math.atan2(math.sqrt(x), math.sqrt(1 - x))
+    return r * y
 
-def extraer_domicilio_desde_linea(linea: str, localidad: str):
-    """
-    Toma el texto que está entre el domicilio y la localidad.
-    """
-    if not localidad:
+def coords_de_parada(parada):
+    loc = parada.get("localidad")
+    if loc in ZONAS:
+        return ZONAS[loc], True
+    return None, False
+
+def generar_link_individual(texto):
+    return f"https://www.google.com/maps/search/?api=1&query={quote(texto)}"
+
+def optimizar_ruta_basica(origen_coords, paradas):
+    encontradas = []
+    no_encontradas = []
+
+    for p in paradas:
+        item = dict(p)
+        coords, ok = coords_de_parada(item)
+        item["coords"] = coords
+        item["encontrada"] = ok
+        if ok:
+            encontradas.append(item)
+        else:
+            no_encontradas.append(item)
+
+    ruta = []
+    actual = origen_coords
+    distancia_total = 0.0
+
+    while encontradas:
+        siguiente = min(encontradas, key=lambda x: haversine_km(actual, x["coords"]))
+        tramo = haversine_km(actual, siguiente["coords"])
+        distancia_total += tramo
+
+        siguiente["distancia_desde_anterior_km"] = round(tramo, 2)
+        siguiente["link_individual"] = generar_link_individual(siguiente["direccion_mapa"])
+        ruta.append(siguiente)
+
+        actual = siguiente["coords"]
+        encontradas.remove(siguiente)
+
+    for item in no_encontradas:
+        item["distancia_desde_anterior_km"] = "-"
+        item["link_individual"] = generar_link_individual(item["direccion_mapa"])
+        ruta.append(item)
+
+    for i, p in enumerate(ruta, start=1):
+        p["orden"] = i
+
+    tiempo_total_min = round((distancia_total / 25) * 60) if distancia_total > 0 else 0
+    return ruta, round(distancia_total, 2), tiempo_total_min
+
+def generar_link_maps(origen_texto, ruta):
+    if not ruta:
         return None
 
-    idx_loc = linea.lower().find(localidad.lower())
-    if idx_loc == -1:
+    validas = [r for r in ruta if r.get("encontrada")]
+    if not validas:
         return None
 
-    antes_localidad = linea[:idx_loc].strip()
+    destino = validas[-1]["direccion_mapa"]
+    intermedios = [r["direccion_mapa"] for r in validas[:-1]]
 
-    # Buscar el inicio del domicilio por patrones comunes
-    patrones = [
-        r"\bCalle\b",
-        r"\bAvenida\b",
-        r"\bAv\.\b",
-        r"\bAv\b",
-        r"\bPasaje\b",
-        r"\bPJE\b",
-        r"\bPje\b",
-        r"\bTronador\b",
-        r"\bGalicia\b",
-        r"\bUriburu\b",
-        r"\bMonroe\b",
-        r"\bFreire\b",
-        r"\bLavallol\b",
-        r"\bALEJO\b",
-        r"\bQuerandies\b",
-        r"\bQuerandíes\b",
-        r"\bNazarre\b",
-        r"\bCordoba\b",
-        r"\bC[oó]rdoba\b",
-        r"\bRiestra\b",
-        r"\bOlavarr[ií]a\b",
-        r"\bCatamarca\b",
-        r"\bElpidio\b",
-        r"\bLuis\b",
-        r"\bSanta\b",
-    ]
+    url = (
+        f"https://www.google.com/maps/dir/?api=1"
+        f"&origin={quote(origen_texto)}"
+        f"&destination={quote(destino)}"
+        f"&travelmode=driving"
+    )
 
-    inicio = None
-    for patron in patrones:
-        m = re.search(patron, antes_localidad, re.IGNORECASE)
-        if m:
-            pos = m.start()
-            if inicio is None or pos < inicio:
-                inicio = pos
+    if intermedios:
+        url += f"&waypoints={quote('|'.join(intermedios))}"
 
-    if inicio is None:
-        return None
-
-    domicilio = antes_localidad[inicio:].strip()
-    return limpiar(domicilio)
-
-def extraer_cliente_desde_linea(linea: str, domicilio: str):
-    idx = linea.lower().find(domicilio.lower())
-    if idx > 0:
-        cliente = linea[:idx].strip()
-        return limpiar(cliente)
-    return "Cliente"
-
-def es_linea_util(linea: str):
-    if not linea:
-        return False
-
-    bloqueados = [
-        "Impresión de Hoja de Ruta",
-        "Total Documentos",
-        "m3 Total Viaje",
-        "CHOFER",
-        "Firma:",
-        "Aclaración:",
-        "ARRIBO",
-        "SALIDA",
-        "CONTROLADOR",
-        "OBSERVACIONES",
-        "IMPORTANTE",
-        "Estado Vehículo",
-        "Recepcionó:",
-        "Custodia:",
-    ]
-
-    for b in bloqueados:
-        if b.lower() in linea.lower():
-            return False
-
-    return True
-
-def extraer_paradas_y_hoja(file_storage):
-    nro_hoja = None
-    paradas = []
-    vistos = set()
-
-    with pdfplumber.open(file_storage) as pdf:
-        texto_total = []
-
-        for page in pdf.pages:
-            texto = page.extract_text() or ""
-            if texto:
-                texto_total.append(texto)
-
-        texto_total = "\n".join(texto_total)
-        nro_hoja = extraer_nro_hoja(texto_total)
-
-        lineas = texto_total.split("\n")
-
-        for linea in lineas:
-            linea = limpiar(linea)
-
-            if not es_linea_util(linea):
-                continue
-
-            localidad = detectar_localidad_en_linea(linea)
-            if not localidad:
-                continue
-
-            domicilio = extraer_domicilio_desde_linea(linea, localidad)
-            if not domicilio:
-                continue
-
-            cliente = extraer_cliente_desde_linea(linea, domicilio)
-
-            direccion_mapa = f"{domicilio}, {localidad}, Buenos Aires, Argentina"
-            key = direccion_mapa.lower()
-
-            if key in vistos:
-                continue
-            vistos.add(key)
-
-            paradas.append({
-                "cliente": cliente,
-                "direccion": domicilio,
-                "localidad": localidad,
-                "direccion_mapa": direccion_mapa
-            })
-
-    return nro_hoja, paradas
+    return url
