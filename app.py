@@ -1,5 +1,6 @@
 import os
 from flask import Flask, render_template, request
+
 from utils.parser import extraer_paradas_y_hoja
 from utils.optimizer import optimizar_ruta_basica, generar_link_maps
 
@@ -16,59 +17,78 @@ DEPOSITOS = {
     }
 }
 
-@app.route("/", methods=["GET", "POST"])
-def index():
-    if request.method == "POST":
-        try:
-            deposito_key = request.form.get("deposito")
-            archivo = request.files.get("file")
-
-            if not deposito_key or deposito_key not in DEPOSITOS:
-                return "Error: depósito inválido", 400
-
-            if not archivo or archivo.filename == "":
-                return "Error: no se adjuntó archivo", 400
-
-            nro_hoja, paradas = extraer_paradas_y_hoja(archivo)
-
-            if not paradas:
-                return "Error: no se detectaron paradas en la hoja de ruta", 400
-
-            deposito = DEPOSITOS[deposito_key]
-
-            ruta, distancia_total_km, tiempo_total_min = optimizar_ruta_basica(
-                deposito["coords"],
-                paradas
-            )
-
-            link_maps = generar_link_maps(deposito["nombre"], ruta)
-
-            return render_template(
-                "index.html",
-                deposito=deposito["nombre"],
-                nro_hoja=nro_hoja,
-                ruta=ruta,
-                distancia=distancia_total_km,
-                tiempo=tiempo_total_min,
-                link=link_maps
-            )
-
-        except Exception as e:
-            return f"Error interno: {str(e)}", 500
-
-    return render_template(
-        "index.html",
-        deposito=None,
-        nro_hoja=None,
-        ruta=None,
-        distancia=None,
-        tiempo=None,
-        link=None
-    )
-
 @app.route("/health")
 def health():
     return "OK", 200
+
+@app.route("/", methods=["GET", "POST"])
+def index():
+    if request.method == "GET":
+        return render_template(
+            "index.html",
+            deposito=None,
+            nro_hoja=None,
+            ruta=None,
+            distancia=None,
+            tiempo=None,
+            link=None,
+            error=None
+        )
+
+    try:
+        deposito_key = request.form.get("deposito")
+        archivo = request.files.get("file")
+
+        if not deposito_key or deposito_key not in DEPOSITOS:
+            return render_template(
+                "index.html",
+                error="Depósito inválido.",
+                deposito=None, nro_hoja=None, ruta=None, distancia=None, tiempo=None, link=None
+            ), 400
+
+        if not archivo or archivo.filename == "":
+            return render_template(
+                "index.html",
+                error="No adjuntaste ningún archivo PDF.",
+                deposito=None, nro_hoja=None, ruta=None, distancia=None, tiempo=None, link=None
+            ), 400
+
+        nro_hoja, paradas = extraer_paradas_y_hoja(archivo)
+
+        if not paradas:
+            return render_template(
+                "index.html",
+                error="No se pudieron detectar direcciones en la hoja de ruta.",
+                deposito=None, nro_hoja=None, ruta=None, distancia=None, tiempo=None, link=None
+            ), 400
+
+        deposito = DEPOSITOS[deposito_key]
+
+        ruta, distancia_total_km, tiempo_total_min = optimizar_ruta_basica(
+            deposito["coords"],
+            paradas
+        )
+
+        link_maps = generar_link_maps(deposito["nombre"], ruta)
+
+        return render_template(
+            "index.html",
+            deposito=deposito["nombre"],
+            nro_hoja=nro_hoja,
+            ruta=ruta,
+            distancia=distancia_total_km,
+            tiempo=tiempo_total_min,
+            link=link_maps,
+            error=None
+        )
+
+    except Exception as e:
+        return render_template(
+            "index.html",
+            error=f"Error interno: {str(e)}",
+            deposito=None, nro_hoja=None, ruta=None, distancia=None, tiempo=None, link=None
+        ), 500
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
