@@ -1,89 +1,90 @@
 import pdfplumber
 import re
+from collections import defaultdict
 
-LOCALIDADES = [
-    "LA BOCA",
-    "CAPITAL FEDERAL",
-    "SAN CRISTÓBAL",
-    "SAN CRISTOBAL",
-    "ALMAGRO",
-    "VILLA SANTA RIT",
-    "VILLA SANTA RITA",
-    "VILLA CRESPO",
-    "PARQUE CHAS",
-    "BELGRANO",
-    "FLORES",
-    "VELEZ SARSFIELD",
-    "VÉLEZ SARSFIELD",
-    "CABALLITO",
-    "DEVOTO",
-    "CIUDAD AUTÓNOMA",
-    "CIUDAD AUTONOMA",
-    "PALERMO",
-]
-
-INICIOS_DOMICILIO = [
-    "CALLE", "AVENIDA", "AV.", "AV", "PASAJE", "PJE", "PJE.", "TRONADOR",
-    "GALICIA", "URIBURU", "MONROE", "FREIRE", "LAVALLOL", "ALEJO",
-    "QUERANDIES", "QUERANDÍES", "NAZARRE", "CORDOBA", "CÓRDOBA",
-    "RIESTRA", "OLAVARRIA", "OLAVARRÍA", "CATAMARCA", "ELPIDIO",
-    "LUIS", "SANTA", "AV.RIESTRA"
-]
-
-BLOQUEADOS = [
-    "IMPRESIÓN DE HOJA DE RUTA",
-    "TOTAL DOCUMENTOS",
-    "M3 TOTAL VIAJE",
-    "CHOFER",
-    "FIRMA:",
-    "ACLARACIÓN:",
-    "ARRIBO",
-    "SALIDA",
-    "CONTROLADOR",
-    "OBSERVACIONES",
-    "IMPORTANTE",
-    "ESTADO VEHÍCULO",
-    "RECEPCIONÓ",
-    "CUSTODIA",
-    "FECHA:",
-    "HOJA:",
-]
 
 def limpiar(texto: str) -> str:
     texto = texto.replace("\xa0", " ")
     texto = re.sub(r"\s+", " ", texto)
     return texto.strip()
 
+
 def extraer_nro_hoja(texto: str):
     m = re.search(r"Impresi[oó]n de Hoja de Ruta Nro\.\s*:\s*(\d+)", texto, re.IGNORECASE)
     return m.group(1) if m else None
 
-def es_linea_util(linea: str) -> bool:
-    if not linea:
+
+def agrupar_por_linea(words, tolerancia=3):
+    lineas = defaultdict(list)
+
+    for w in words:
+        top_key = round(w["top"] / tolerancia) * tolerancia
+        lineas[top_key].append(w)
+
+    resultado = []
+    for _, items in sorted(lineas.items(), key=lambda x: x[0]):
+        items_ordenados = sorted(items, key=lambda x: x["x0"])
+        resultado.append(items_ordenados)
+
+    return resultado
+
+
+def texto_en_rango(words, x_min, x_max):
+    partes = [w["text"] for w in words if w["x0"] >= x_min and w["x0"] < x_max]
+    return limpiar(" ".join(partes))
+
+
+def es_fila_datos(cliente, domicilio, localidad):
+    if not domicilio:
         return False
-    up = linea.upper()
-    for b in BLOQUEADOS:
-        if b in up:
+
+    bloqueados = [
+        "Cliente/Expreso",
+        "Domicilio",
+        "Localidad",
+        "Documentos",
+        "COT",
+        "Cant.",
+        "Novedades",
+        "m3 Total Viaje",
+        "Total Documentos",
+        "CHOFER",
+        "Firma:",
+        "Aclaración:",
+        "SALIDA",
+        "ARRIBO",
+        "CONTROLADOR",
+        "OBSERVACIONES",
+        "IMPORTANTE",
+    ]
+
+    todo = f"{cliente} {domicilio} {localidad}".lower()
+    for b in bloqueados:
+        if b.lower() in todo:
             return False
+
+    # Debe tener al menos un número en el domicilio
+    if not re.search(r"\d", domicilio):
+        return False
+
     return True
 
-def detectar_localidad(linea: str):
-    up = linea.upper()
-    for loc in sorted(LOCALIDADES, key=len, reverse=True):
-        if loc in up:
-            return loc.title()
-    return None
 
-def detectar_inicio_domicilio(linea: str):
-    up = linea.upper()
-    pos_min = None
-    valor = None
-    for inicio in INICIOS_DOMICILIO:
-        pos = up.find(inicio)
-        if pos != -1 and (pos_min is None or pos < pos_min):
-            pos_min = pos
-            valor = inicio
-    return pos_min, valor
+def normalizar_localidad(localidad: str):
+    if not localidad:
+        return "Sin localidad"
+
+    loc = limpiar(localidad)
+
+    reemplazos = {
+        "Jose Clemente P": "José C. Paz",
+        "Jose C. Paz": "José C. Paz",
+        "Jose C Paz": "José C. Paz",
+        "CAPITAL FEDERAL": "Capital Federal",
+    }
+
+    return reemplazos.get(loc, loc)
+
 
 def extraer_paradas_y_hoja(file_storage):
     nro_hoja = None
@@ -91,52 +92,72 @@ def extraer_paradas_y_hoja(file_storage):
     vistos = set()
 
     with pdfplumber.open(file_storage) as pdf:
-        paginas_texto = []
+        texto_total = []
         for page in pdf.pages:
-            txt = page.extract_text() or ""
-            if txt:
-                paginas_texto.append(txt)
+            texto_total.append(page.extract_text() or "")
+        nro_hoja = extraer_nro_hoja("\n".join(texto_total))
 
-        texto_total = "\n".join(paginas_texto)
-        nro_hoja = extraer_nro_hoja(texto_total)
+        for page in pdf.pages:
+            words = page.extract_words(
+                x_tolerance=2,
+                y_tolerance=2,
+                keep_blank_chars=False,
+                use_text_flow=True
+            )
 
-        for linea in texto_total.split("\n"):
-            linea = limpiar(linea)
-            if not es_linea_util(linea):
+            if not words:
                 continue
 
-            localidad = detectar_localidad(linea)
-            if not localidad:
-                continue
+            ancho = page.width
 
-            idx_loc = linea.upper().find(localidad.upper())
-            if idx_loc == -1:
-                continue
+            # Rangos aproximados de columnas en base al formato de tus hojas
+            x_cliente_min = 0
+            x_cliente_max = ancho * 0.28
 
-            izquierda = limpiar(linea[:idx_loc])
+            x_domicilio_min = ancho * 0.28
+            x_domicilio_max = ancho * 0.56
 
-            idx_dom, _ = detectar_inicio_domicilio(izquierda)
-            if idx_dom is None:
-                continue
+            x_localidad_min = ancho * 0.56
+            x_localidad_max = ancho * 0.72
 
-            cliente = limpiar(izquierda[:idx_dom]) or "Cliente"
-            domicilio = limpiar(izquierda[idx_dom:]) or None
+            lineas = agrupar_por_linea(words, tolerancia=3)
 
-            if not domicilio:
-                continue
+            dentro_tabla = False
 
-            direccion_mapa = f"{domicilio}, {localidad}, Buenos Aires, Argentina"
-            key = direccion_mapa.lower()
+            for linea_words in lineas:
+                texto_linea = limpiar(" ".join(w["text"] for w in linea_words))
 
-            if key in vistos:
-                continue
-            vistos.add(key)
+                if "Cliente/Expreso" in texto_linea and "Domicilio" in texto_linea and "Localidad" in texto_linea:
+                    dentro_tabla = True
+                    continue
 
-            paradas.append({
-                "cliente": cliente,
-                "direccion": domicilio,
-                "localidad": localidad,
-                "direccion_mapa": direccion_mapa
-            })
+                if not dentro_tabla:
+                    continue
+
+                if "m3 Total Viaje" in texto_linea or "Total Documentos" in texto_linea:
+                    break
+
+                cliente = texto_en_rango(linea_words, x_cliente_min, x_cliente_max)
+                domicilio = texto_en_rango(linea_words, x_domicilio_min, x_domicilio_max)
+                localidad = texto_en_rango(linea_words, x_localidad_min, x_localidad_max)
+
+                localidad = normalizar_localidad(localidad)
+
+                if not es_fila_datos(cliente, domicilio, localidad):
+                    continue
+
+                direccion_mapa = f"{domicilio}, {localidad}, Buenos Aires, Argentina"
+                key = direccion_mapa.lower()
+
+                if key in vistos:
+                    continue
+                vistos.add(key)
+
+                paradas.append({
+                    "cliente": cliente or "Cliente",
+                    "direccion": domicilio,
+                    "localidad": localidad,
+                    "direccion_mapa": direccion_mapa
+                })
 
     return nro_hoja, paradas
