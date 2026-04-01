@@ -1,5 +1,4 @@
 import math
-from urllib.parse import quote
 
 from utils.geocode_osm import geocodificar_direccion
 
@@ -8,7 +7,7 @@ def haversine_metros(a, b):
     lat1, lon1 = a
     lat2, lon2 = b
 
-    r = 6371000.0
+    radio = 6371000.0
 
     p1 = math.radians(lat1)
     p2 = math.radians(lat2)
@@ -17,7 +16,8 @@ def haversine_metros(a, b):
 
     x = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
     y = 2 * math.atan2(math.sqrt(x), math.sqrt(1 - x))
-    return r * y
+
+    return radio * y
 
 
 def link_google_maps_coords(lat, lon):
@@ -25,23 +25,25 @@ def link_google_maps_coords(lat, lon):
 
 
 def buscar_evento_mas_cercano(destino_coords, eventos):
-    mejor = None
-    mejor_dist = None
+    mejor_evento = None
+    mejor_distancia = None
 
-    for ev in eventos:
-        dist = haversine_metros(destino_coords, ev["coordenadas"])
-        if mejor_dist is None or dist < mejor_dist:
-            mejor_dist = dist
-            mejor = ev
+    for evento in eventos:
+        distancia = haversine_metros(destino_coords, evento["coordenadas"])
 
-    return mejor, mejor_dist
+        if mejor_distancia is None or distancia < mejor_distancia:
+            mejor_distancia = distancia
+            mejor_evento = evento
+
+    return mejor_evento, mejor_distancia
 
 
 def procesar_cruce_completo(hoja_ruta_nro, paradas, eventos, margen_metros=50):
     eventos_procesados = []
-    for ev in eventos:
-        lat, lon = ev["coordenadas"]
-        item = dict(ev)
+
+    for evento in eventos:
+        lat, lon = evento["coordenadas"]
+        item = dict(evento)
         item["link_mapa"] = link_google_maps_coords(lat, lon)
         eventos_procesados.append(item)
 
@@ -55,6 +57,7 @@ def procesar_cruce_completo(hoja_ruta_nro, paradas, eventos, margen_metros=50):
         item["orden"] = idx
 
         geo = geocodificar_direccion(item["direccion"], item["localidad"])
+
         if not geo:
             item["destino_coords"] = None
             item["destino_link"] = None
