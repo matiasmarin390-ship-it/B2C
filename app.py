@@ -2,7 +2,7 @@ import os
 from flask import Flask, render_template, request
 
 from utils.parser_pdf import extraer_paradas_pdf
-from utils.parser_xlsx import extraer_eventos_xlsx
+from utils.parser_xlsx import extraer_datos_xlsx
 from utils.matcher import procesar_cruce_completo
 
 app = Flask(__name__)
@@ -47,7 +47,7 @@ def index():
             ), 400
 
         hoja_ruta_nro, paradas = extraer_paradas_pdf(pdf_file)
-        eventos = extraer_eventos_xlsx(xlsx_file)
+        eventos = extraer_datos_xlsx(xlsx_file)
 
         if not paradas:
             return render_template(
