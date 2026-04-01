@@ -10,7 +10,11 @@ def limpiar(texto: str) -> str:
 
 
 def extraer_nro_hoja(texto: str):
-    match = re.search(r"Impresi[oó]n de Hoja de Ruta Nro\.\s*:\s*(\d+)", texto, re.IGNORECASE)
+    match = re.search(
+        r"Impresi[oó]n de Hoja de Ruta Nro\.\s*:\s*(\d+)",
+        texto,
+        re.IGNORECASE
+    )
     return match.group(1) if match else None
 
 
@@ -159,9 +163,7 @@ def extraer_paradas_pdf(file_storage):
                 if not es_fila_datos(cliente, domicilio, localidad):
                     continue
 
-                direccion_mapa = f"{domicilio}, {localidad}, Buenos Aires, Argentina"
-                key = direccion_mapa.lower()
-
+                key = f"{domicilio}|{localidad}".lower()
                 if key in vistos:
                     continue
                 vistos.add(key)
@@ -169,8 +171,7 @@ def extraer_paradas_pdf(file_storage):
                 paradas.append({
                     "cliente": cliente or "Cliente",
                     "direccion": domicilio,
-                    "localidad": localidad,
-                    "direccion_mapa": direccion_mapa
+                    "localidad": localidad
                 })
 
     return nro_hoja, paradas
