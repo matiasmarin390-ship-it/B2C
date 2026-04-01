@@ -70,7 +70,10 @@ def procesar_cruce_completo(hoja_ruta_nro, paradas, eventos, margen_metros=50):
         item["destino_link"] = link_google_maps_coords(geo["lat"], geo["lon"])
         item["consulta_usada"] = geo["consulta_usada"]
 
-        evento_cercano, distancia_m = buscar_evento_mas_cercano(item["destino_coords"], eventos_procesados)
+        evento_cercano, distancia_m = buscar_evento_mas_cercano(
+            item["destino_coords"],
+            eventos_procesados
+        )
 
         item["distancia_evento_mas_cercano_m"] = round(distancia_m, 1) if distancia_m is not None else None
         item["evento_mas_cercano"] = evento_cercano
