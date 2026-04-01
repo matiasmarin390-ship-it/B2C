@@ -6,7 +6,7 @@
     <title>Auditoría Hoja de Ruta vs Histórico</title>
     <style>
         body { font-family: Arial, sans-serif; background:#f4f6f8; margin:0; padding:0; }
-        .container { max-width: 1300px; margin: 30px auto; background:#fff; padding:24px; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.08); }
+        .container { max-width: 1400px; margin: 30px auto; background:#fff; padding:24px; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.08); }
         h1, h2, h3 { color:#1d3557; }
         .row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
         .field { flex:1; min-width:260px; }
@@ -31,7 +31,7 @@
 <body>
 <div class="container">
     <h1>Auditoría de hoja de ruta vs histórico</h1>
-    <p>Subí la hoja de ruta en PDF y el histórico en Excel. El sistema cruza las direcciones del PDF con los eventos de la solapa <strong>Resultados</strong>.</p>
+    <p>Subí la hoja de ruta en PDF y el histórico en Excel. El sistema separa cliente, domicilio, localidad y remito, y cruza la calle del domicilio contra el histórico.</p>
 
     {% if error %}
         <div class="error">{{ error }}</div>
@@ -73,6 +73,8 @@
                     <th>#</th>
                     <th>Cliente</th>
                     <th>Dirección hoja</th>
+                    <th>Localidad</th>
+                    <th>Remito</th>
                     <th>Estado</th>
                     <th>Score</th>
                     <th>Evento asociado</th>
@@ -84,7 +86,9 @@
                 <tr>
                     <td>{{ p.orden }}</td>
                     <td>{{ p.cliente }}</td>
-                    <td>{{ p.direccion }} - {{ p.localidad }}</td>
+                    <td>{{ p.direccion }}</td>
+                    <td>{{ p.localidad }}</td>
+                    <td>{{ p.remito if p.remito else '-' }}</td>
                     <td>
                         {% if p.estado == 'Cumplido' %}
                             <span class="ok">{{ p.estado }}</span>
@@ -97,8 +101,8 @@
                         {% if p.evento_mas_cercano %}
                             <div><strong>{{ p.evento_mas_cercano.evento }}</strong></div>
                             <div class="small">{{ p.evento_mas_cercano.fecha }}</div>
-                            <div class="small">{{ p.evento_mas_cercano.ubicacion if p.evento_mas_cercano.ubicacion else '-' }}</div>
-                            <div class="small">{{ p.evento_mas_cercano.punto_cercano if p.evento_mas_cercano.punto_cercano else '-' }}</div>
+                            <div class="small">Ubicación: {{ p.evento_mas_cercano.ubicacion if p.evento_mas_cercano.ubicacion else '-' }}</div>
+                            <div class="small">Punto cercano: {{ p.evento_mas_cercano.punto_cercano if p.evento_mas_cercano.punto_cercano else '-' }}</div>
                         {% else %}
                             -
                         {% endif %}
