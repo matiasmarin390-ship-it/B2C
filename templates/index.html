@@ -1,97 +1,171 @@
-import math
-from urllib.parse import quote
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auditoría Hoja de Ruta vs Histórico</title>
+    <style>
+        body { font-family: Arial, sans-serif; background:#f4f6f8; margin:0; padding:0; }
+        .container { max-width: 1300px; margin: 30px auto; background:#fff; padding:24px; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.08); }
+        h1, h2, h3 { color:#1d3557; }
+        .row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+        .field { flex:1; min-width:260px; }
+        label { display:block; margin-bottom:8px; font-weight:bold; }
+        input[type=file], button {
+            width:100%; padding:12px; border:1px solid #d0d7de; border-radius:8px; font-size:15px; box-sizing:border-box;
+        }
+        button { background:#1d4ed8; color:#fff; border:none; cursor:pointer; font-weight:bold; }
+        button:hover { background:#1e40af; }
+        .error { background:#fee2e2; color:#991b1b; padding:12px; border-radius:8px; margin:16px 0; }
+        .summary { background:#eef5ff; padding:16px; border-radius:10px; margin:20px 0; border-left:5px solid #1d4ed8; }
+        table { width:100%; border-collapse:collapse; margin-top:16px; margin-bottom:28px; }
+        th, td { border:1px solid #dbe2ea; padding:10px; text-align:left; vertical-align:top; }
+        th { background:#f1f5f9; }
+        .ok { color:#15803d; font-weight:bold; }
+        .bad { color:#b91c1c; font-weight:bold; }
+        .warn { color:#92400e; font-weight:bold; }
+        a { color:#1d4ed8; text-decoration:none; font-weight:bold; }
+        a:hover { text-decoration:underline; }
+        .small { color:#555; font-size:13px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Auditoría de hoja de ruta vs histórico</h1>
+    <p>Subí la hoja de ruta en PDF y el histórico en Excel. El sistema cruza las direcciones del PDF con los eventos de la solapa <strong>Resultados</strong>.</p>
 
-from utils.geocode_osm import geocodificar_direccion
+    {% if error %}
+        <div class="error">{{ error }}</div>
+    {% endif %}
 
+    <form method="POST" enctype="multipart/form-data">
+        <div class="row">
+            <div class="field">
+                <label for="pdf_file">Hoja de ruta (PDF)</label>
+                <input type="file" name="pdf_file" id="pdf_file" accept=".pdf" required>
+            </div>
 
-def haversine_metros(a, b):
-    lat1, lon1 = a
-    lat2, lon2 = b
+            <div class="field">
+                <label for="xlsx_file">Histórico (Excel)</label>
+                <input type="file" name="xlsx_file" id="xlsx_file" accept=".xlsx,.xls" required>
+            </div>
 
-    r = 6371000.0
+            <div class="field">
+                <label>&nbsp;</label>
+                <button type="submit">Procesar cruce</button>
+            </div>
+        </div>
+    </form>
 
-    p1 = math.radians(lat1)
-    p2 = math.radians(lat2)
-    dp = math.radians(lat2 - lat1)
-    dl = math.radians(lon2 - lon1)
+    {% if resumen %}
+        <div class="summary">
+            <h2>Resumen</h2>
+            <p><strong>Hoja de ruta:</strong> {{ resumen.hoja_ruta_nro if resumen.hoja_ruta_nro else 'No detectada' }}</p>
+            <p><strong>Total paradas:</strong> {{ resumen.total_paradas }}</p>
+            <p><strong>Total eventos analizados:</strong> {{ resumen.total_eventos }}</p>
+            <p><strong>Margen de validación:</strong> {{ resumen.margen_metros }} metros</p>
+            <p><strong class="ok">Cumplidos:</strong> {{ resumen.cumplidos }}</p>
+            <p><strong class="bad">No cumplidos:</strong> {{ resumen.no_cumplidos }}</p>
+            <p><strong class="warn">Sin coordenadas de destino:</strong> {{ resumen.sin_coord }}</p>
+        </div>
 
-    x = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
-    y = 2 * math.atan2(math.sqrt(x), math.sqrt(1 - x))
-    return r * y
+        <h2>Paradas de la hoja de ruta</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Cliente</th>
+                    <th>Dirección hoja</th>
+                    <th>Estado</th>
+                    <th>Distancia al evento más cercano</th>
+                    <th>Evento más cercano</th>
+                    <th>Mapa destino</th>
+                    <th>Mapa evento</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for p in paradas %}
+                <tr>
+                    <td>{{ p.orden }}</td>
+                    <td>{{ p.cliente }}</td>
+                    <td>
+                        <div>{{ p.direccion }} - {{ p.localidad }}</div>
+                        {% if p.consulta_usada %}
+                            <div class="small">Consulta usada: {{ p.consulta_usada }}</div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if p.estado == 'Cumplido' %}
+                            <span class="ok">{{ p.estado }}</span>
+                        {% elif p.estado == 'No cumplido' %}
+                            <span class="bad">{{ p.estado }}</span>
+                        {% else %}
+                            <span class="warn">{{ p.estado }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if p.distancia_evento_mas_cercano_m is not none %}
+                            {{ p.distancia_evento_mas_cercano_m }} m
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if p.evento_mas_cercano %}
+                            <div><strong>{{ p.evento_mas_cercano.evento }}</strong></div>
+                            <div class="small">{{ p.evento_mas_cercano.fecha }}</div>
+                            {% if p.evento_mas_cercano.ubicacion %}
+                                <div class="small">{{ p.evento_mas_cercano.ubicacion }}</div>
+                            {% endif %}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if p.destino_link %}
+                            <a href="{{ p.destino_link }}" target="_blank">Ver destino</a>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if p.evento_mas_cercano %}
+                            <a href="{{ p.evento_mas_cercano.link_mapa }}" target="_blank">Ver evento</a>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
 
-
-def link_google_maps_coords(lat, lon):
-    return f"https://www.google.com/maps?q={lat},{lon}"
-
-
-def buscar_evento_mas_cercano(destino_coords, eventos):
-    mejor = None
-    mejor_dist = None
-
-    for ev in eventos:
-        dist = haversine_metros(destino_coords, ev["coordenadas"])
-        if mejor_dist is None or dist < mejor_dist:
-            mejor_dist = dist
-            mejor = ev
-
-    return mejor, mejor_dist
-
-
-def procesar_cruce_completo(hoja_ruta_nro, paradas, eventos, margen_metros=50):
-    eventos_procesados = []
-    for ev in eventos:
-        lat, lon = ev["coordenadas"]
-        item = dict(ev)
-        item["link_mapa"] = link_google_maps_coords(lat, lon)
-        eventos_procesados.append(item)
-
-    paradas_procesadas = []
-    cumplidos = 0
-    no_cumplidos = 0
-    sin_coord = 0
-
-    for idx, parada in enumerate(paradas, start=1):
-        item = dict(parada)
-        item["orden"] = idx
-
-        geo = geocodificar_direccion(item["direccion"], item["localidad"])
-        if not geo:
-            item["destino_coords"] = None
-            item["destino_link"] = None
-            item["estado"] = "Sin coordenadas de destino"
-            item["distancia_evento_mas_cercano_m"] = None
-            item["evento_mas_cercano"] = None
-            item["consulta_usada"] = None
-            sin_coord += 1
-            paradas_procesadas.append(item)
-            continue
-
-        item["destino_coords"] = (geo["lat"], geo["lon"])
-        item["destino_link"] = link_google_maps_coords(geo["lat"], geo["lon"])
-        item["consulta_usada"] = geo["consulta_usada"]
-
-        evento_cercano, distancia_m = buscar_evento_mas_cercano(item["destino_coords"], eventos_procesados)
-
-        item["distancia_evento_mas_cercano_m"] = round(distancia_m, 1) if distancia_m is not None else None
-        item["evento_mas_cercano"] = evento_cercano
-
-        if evento_cercano and distancia_m is not None and distancia_m <= margen_metros:
-            item["estado"] = "Cumplido"
-            cumplidos += 1
-        else:
-            item["estado"] = "No cumplido"
-            no_cumplidos += 1
-
-        paradas_procesadas.append(item)
-
-    resumen = {
-        "hoja_ruta_nro": hoja_ruta_nro,
-        "total_paradas": len(paradas_procesadas),
-        "total_eventos": len(eventos_procesados),
-        "cumplidos": cumplidos,
-        "no_cumplidos": no_cumplidos,
-        "sin_coord": sin_coord,
-        "margen_metros": margen_metros
-    }
-
-    return resumen, paradas_procesadas, eventos_procesados
+        <h2>Eventos detectados en el histórico</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Evento</th>
+                    <th>Ubicación</th>
+                    <th>Punto cercano</th>
+                    <th>Coordenadas</th>
+                    <th>Google Maps</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for e in eventos %}
+                <tr>
+                    <td>{{ e.fecha }}</td>
+                    <td>{{ e.evento }}</td>
+                    <td>{{ e.ubicacion if e.ubicacion else '-' }}</td>
+                    <td>{{ e.punto_cercano if e.punto_cercano else '-' }}</td>
+                    <td>{{ e.coordenadas[0] }}, {{ e.coordenadas[1] }}</td>
+                    <td><a href="{{ e.link_mapa }}" target="_blank">Ver punto</a></td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+</div>
+</body>
+</html>
