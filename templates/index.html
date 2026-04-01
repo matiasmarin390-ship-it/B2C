@@ -31,7 +31,7 @@
 <body>
 <div class="container">
     <h1>Auditoría de hoja de ruta vs histórico</h1>
-    <p>Subí la hoja de ruta en PDF y el histórico en Excel. El sistema separa cliente, domicilio, localidad y remito, y cruza la calle del domicilio contra el histórico.</p>
+    <p>Subí el Excel de hoja de ruta y el Excel histórico. La hoja de ruta usa <strong>DROP_DOMICILIO</strong> como dirección y <strong>DROP_CIUDAD</strong> como ciudad/localidad.</p>
 
     {% if error %}
         <div class="error">{{ error }}</div>
@@ -40,13 +40,13 @@
     <form method="POST" enctype="multipart/form-data">
         <div class="row">
             <div class="field">
-                <label for="pdf_file">Hoja de ruta (PDF)</label>
-                <input type="file" name="pdf_file" id="pdf_file" accept=".pdf" required>
+                <label for="ruta_file">Hoja de ruta (Excel)</label>
+                <input type="file" name="ruta_file" id="ruta_file" accept=".xlsx,.xls" required>
             </div>
 
             <div class="field">
-                <label for="xlsx_file">Histórico (Excel)</label>
-                <input type="file" name="xlsx_file" id="xlsx_file" accept=".xlsx,.xls" required>
+                <label for="historico_file">Histórico (Excel)</label>
+                <input type="file" name="historico_file" id="historico_file" accept=".xlsx,.xls" required>
             </div>
 
             <div class="field">
