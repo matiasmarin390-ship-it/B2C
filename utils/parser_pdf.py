@@ -10,19 +10,21 @@ def limpiar(texto: str) -> str:
 
 
 def extraer_nro_hoja(texto: str):
-    m = re.search(r"Impresi[oó]n de Hoja de Ruta Nro\.\s*:\s*(\d+)", texto, re.IGNORECASE)
-    return m.group(1) if m else None
+    match = re.search(r"Impresi[oó]n de Hoja de Ruta Nro\.\s*:\s*(\d+)", texto, re.IGNORECASE)
+    return match.group(1) if match else None
 
 
 def agrupar_por_linea(words, tolerancia=3):
     lineas = defaultdict(list)
-    for w in words:
-        top_key = round(w["top"] / tolerancia) * tolerancia
-        lineas[top_key].append(w)
+
+    for word in words:
+        top_key = round(word["top"] / tolerancia) * tolerancia
+        lineas[top_key].append(word)
 
     resultado = []
     for _, items in sorted(lineas.items(), key=lambda x: x[0]):
         resultado.append(sorted(items, key=lambda x: x["x0"]))
+
     return resultado
 
 
@@ -36,13 +38,16 @@ def normalizar_localidad(localidad: str) -> str:
 
     reemplazos = {
         "CAPITAL FEDERAL": "Capital Federal",
-        "Ciudad Autónoma": "Ciudad Autónoma",
+        "Ciudad Autonoma": "Ciudad Autónoma",
+        "CIUDAD AUTÓNOMA": "Ciudad Autónoma",
         "Velez Sarsfield": "Vélez Sarsfield",
         "San Cristobal": "San Cristóbal",
         "Villa Santa Rit": "Villa Santa Rita",
         "Jose Clemente P": "José C. Paz",
         "Jose C. Paz": "José C. Paz",
+        "JOSE C. PAZ": "José C. Paz",
     }
+
     return reemplazos.get(loc, loc)
 
 
@@ -54,6 +59,7 @@ def normalizar_domicilio(domicilio: str) -> str:
         (r"(?i)^av[\.\s]+", "Avenida "),
         (r"(?i)^av\.", "Avenida "),
     ]
+
     for patron, nuevo in reemplazos:
         d = re.sub(patron, nuevo, d)
 
@@ -65,10 +71,24 @@ def es_fila_datos(cliente, domicilio, localidad):
         return False
 
     bloqueados = [
-        "Cliente/Expreso", "Domicilio", "Localidad", "Documentos", "COT",
-        "Cant.", "Remito", "Novedades", "m3 Total Viaje", "Total Documentos",
-        "CHOFER", "Firma:", "Aclaración:", "SALIDA", "ARRIBO",
-        "CONTROLADOR", "OBSERVACIONES", "IMPORTANTE"
+        "Cliente/Expreso",
+        "Domicilio",
+        "Localidad",
+        "Documentos",
+        "COT",
+        "Cant.",
+        "Remito",
+        "Novedades",
+        "m3 Total Viaje",
+        "Total Documentos",
+        "CHOFER",
+        "Firma:",
+        "Aclaración:",
+        "SALIDA",
+        "ARRIBO",
+        "CONTROLADOR",
+        "OBSERVACIONES",
+        "IMPORTANTE",
     ]
 
     todo = f"{cliente} {domicilio} {localidad}".lower()
@@ -88,6 +108,7 @@ def extraer_paradas_pdf(file_storage):
         texto_total = []
         for page in pdf.pages:
             texto_total.append(page.extract_text() or "")
+
         nro_hoja = extraer_nro_hoja("\n".join(texto_total))
 
         for page in pdf.pages:
@@ -97,6 +118,7 @@ def extraer_paradas_pdf(file_storage):
                 keep_blank_chars=False,
                 use_text_flow=True
             )
+
             if not words:
                 continue
 
@@ -112,7 +134,6 @@ def extraer_paradas_pdf(file_storage):
             x_localidad_max = ancho * 0.72
 
             lineas = agrupar_por_linea(words, tolerancia=3)
-
             dentro_tabla = False
 
             for linea_words in lineas:
