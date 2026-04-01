@@ -1,87 +1,78 @@
 import math
 
-from utils.geocode_osm import geocodificar_direccion
 
-
-def haversine_metros(a, b):
-    lat1, lon1 = a
-    lat2, lon2 = b
-
-    radio = 6371000.0
-
-    p1 = math.radians(lat1)
-    p2 = math.radians(lat2)
-    dp = math.radians(lat2 - lat1)
-    dl = math.radians(lon2 - lon1)
-
-    x = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
-    y = 2 * math.atan2(math.sqrt(x), math.sqrt(1 - x))
-
-    return radio * y
+def normalizar_texto(txt):
+    if not txt:
+        return ""
+    txt = str(txt).lower()
+    txt = txt.replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u")
+    txt = txt.replace(".", "").replace(",", "")
+    return txt.strip()
 
 
 def link_google_maps_coords(lat, lon):
     return f"https://www.google.com/maps?q={lat},{lon}"
 
 
-def buscar_evento_mas_cercano(destino_coords, eventos):
-    mejor_evento = None
-    mejor_distancia = None
+def score_match(parada, evento):
+    direccion = normalizar_texto(parada["direccion"])
+    localidad = normalizar_texto(parada["localidad"])
 
-    for evento in eventos:
-        distancia = haversine_metros(destino_coords, evento["coordenadas"])
+    texto_evento = normalizar_texto(evento.get("ubicacion", "")) + " " + normalizar_texto(evento.get("punto_cercano", ""))
 
-        if mejor_distancia is None or distancia < mejor_distancia:
-            mejor_distancia = distancia
-            mejor_evento = evento
+    score = 0
 
-    return mejor_evento, mejor_distancia
+    # coincidencia por calle
+    for palabra in direccion.split():
+        if palabra in texto_evento:
+            score += 2
+
+    # coincidencia por localidad
+    if localidad and localidad in texto_evento:
+        score += 3
+
+    return score
+
+
+def buscar_evento_mas_relevante(parada, eventos):
+    mejor = None
+    mejor_score = 0
+
+    for ev in eventos:
+        s = score_match(parada, ev)
+        if s > mejor_score:
+            mejor_score = s
+            mejor = ev
+
+    return mejor, mejor_score
 
 
 def procesar_cruce_completo(hoja_ruta_nro, paradas, eventos, margen_metros=50):
     eventos_procesados = []
 
-    for evento in eventos:
-        lat, lon = evento["coordenadas"]
-        item = dict(evento)
+    for ev in eventos:
+        lat, lon = ev["coordenadas"]
+
+        item = dict(ev)
         item["link_mapa"] = link_google_maps_coords(lat, lon)
+
         eventos_procesados.append(item)
 
     paradas_procesadas = []
+
     cumplidos = 0
     no_cumplidos = 0
-    sin_coord = 0
 
     for idx, parada in enumerate(paradas, start=1):
         item = dict(parada)
         item["orden"] = idx
 
-        geo = geocodificar_direccion(item["direccion"], item["localidad"])
+        evento, score = buscar_evento_mas_relevante(item, eventos_procesados)
 
-        if not geo:
-            item["destino_coords"] = None
-            item["destino_link"] = None
-            item["estado"] = "Sin coordenadas de destino"
-            item["distancia_evento_mas_cercano_m"] = None
-            item["evento_mas_cercano"] = None
-            item["consulta_usada"] = None
-            sin_coord += 1
-            paradas_procesadas.append(item)
-            continue
+        item["evento_mas_cercano"] = evento
+        item["score"] = score
 
-        item["destino_coords"] = (geo["lat"], geo["lon"])
-        item["destino_link"] = link_google_maps_coords(geo["lat"], geo["lon"])
-        item["consulta_usada"] = geo["consulta_usada"]
-
-        evento_cercano, distancia_m = buscar_evento_mas_cercano(
-            item["destino_coords"],
-            eventos_procesados
-        )
-
-        item["distancia_evento_mas_cercano_m"] = round(distancia_m, 1) if distancia_m is not None else None
-        item["evento_mas_cercano"] = evento_cercano
-
-        if evento_cercano and distancia_m is not None and distancia_m <= margen_metros:
+        if evento and score >= 3:
             item["estado"] = "Cumplido"
             cumplidos += 1
         else:
@@ -96,8 +87,6 @@ def procesar_cruce_completo(hoja_ruta_nro, paradas, eventos, margen_metros=50):
         "total_eventos": len(eventos_procesados),
         "cumplidos": cumplidos,
         "no_cumplidos": no_cumplidos,
-        "sin_coord": sin_coord,
-        "margen_metros": margen_metros
     }
 
     return resumen, paradas_procesadas, eventos_procesados
