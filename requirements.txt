@@ -1,3 +1,6 @@
 flask
 pdfplumber
+pandas
+openpyxl
 gunicorn
+geopy
