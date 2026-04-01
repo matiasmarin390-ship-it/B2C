@@ -1,160 +1,97 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ruteador de hoja de ruta</title>
-    <style>
-        body { font-family: Arial, sans-serif; background: #f4f6f8; margin: 0; padding: 0; }
-        .container { max-width: 1200px; margin: 30px auto; background: #fff; padding: 24px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.08); }
-        h1, h2, h3 { color: #1d3557; }
-        .row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
-        .field { flex: 1; min-width: 260px; }
-        label { display: block; margin-bottom: 8px; font-weight: bold; }
-        select, input[type=file], input[type=text], button {
-            width: 100%; padding: 12px; border: 1px solid #d0d7de; border-radius: 8px; font-size: 15px;
-            box-sizing: border-box;
-        }
-        button { background: #1d4ed8; color: #fff; border: none; cursor: pointer; font-weight: bold; }
-        button:hover { background: #1e40af; }
-        .summary { background: #eef5ff; padding: 16px; border-radius: 10px; margin: 20px 0; border-left: 5px solid #1d4ed8; }
-        .card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; margin-bottom: 12px; background: #fafafa; }
-        .small { color: #555; font-size: 14px; }
-        .warning { color: #b91c1c; font-weight: bold; }
-        .ok { color: #15803d; font-weight: bold; }
-        .error { background:#fee2e2; color:#991b1b; padding:12px; border-radius:8px; margin:16px 0; }
-        a { color: #1d4ed8; text-decoration: none; font-weight: bold; }
-        a:hover { text-decoration: underline; }
-        .btn-link {
-            display: inline-block; background: #16a34a; color: #fff; padding: 12px 16px;
-            border-radius: 8px; margin-top: 10px;
-        }
-        .btn-link:hover { background: #15803d; text-decoration: none; }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 14px;
-            margin-bottom: 22px;
-        }
-        th, td {
-            border: 1px solid #dbe2ea;
-            padding: 10px;
-            text-align: left;
-            vertical-align: top;
-        }
-        th {
-            background: #f1f5f9;
-        }
-        .section {
-            margin-top: 28px;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Ruteador de hoja de ruta</h1>
-        <p>Elegí el depósito, cargá el PDF y obtené un recorrido aproximado ordenado por cercanía.</p>
+import math
+from urllib.parse import quote
 
-        {% if error %}
-            <div class="error">{{ error }}</div>
-        {% endif %}
+from utils.geocode_osm import geocodificar_direccion
 
-        <form method="POST" enctype="multipart/form-data">
-            <input type="hidden" name="accion" value="subir">
-            <div class="row">
-                <div class="field">
-                    <label for="deposito">Depósito</label>
-                    <select name="deposito" id="deposito" required>
-                        <option value="">Seleccionar</option>
-                        <option value="monte_chingolo" {% if deposito_key == 'monte_chingolo' %}selected{% endif %}>Monte Chingolo</option>
-                        <option value="roque_perez" {% if deposito_key == 'roque_perez' %}selected{% endif %}>Roque Pérez</option>
-                    </select>
-                </div>
 
-                <div class="field">
-                    <label for="file">Hoja de ruta (PDF)</label>
-                    <input type="file" name="file" id="file" accept=".pdf" required>
-                </div>
+def haversine_metros(a, b):
+    lat1, lon1 = a
+    lat2, lon2 = b
 
-                <div class="field">
-                    <label>&nbsp;</label>
-                    <button type="submit">Leer hoja y generar ruta</button>
-                </div>
-            </div>
-        </form>
+    r = 6371000.0
 
-        {% if ruta %}
-            <div class="summary">
-                <h2>Resumen</h2>
-                <p><strong>Hoja de ruta:</strong> {{ nro_hoja if nro_hoja else 'No detectada' }}</p>
-                <p><strong>Depósito:</strong> {{ deposito }}</p>
-                <p><strong>Paradas detectadas:</strong> {{ ruta|length }}</p>
-                <p><strong>Distancia estimada:</strong> {{ distancia }} km</p>
-                <p><strong>Tiempo estimado:</strong> {{ tiempo }} minutos</p>
+    p1 = math.radians(lat1)
+    p2 = math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
 
-                {% if link %}
-                    <a class="btn-link" href="{{ link }}" target="_blank">Abrir recorrido completo en Google Maps</a>
-                {% endif %}
-            </div>
+    x = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    y = 2 * math.atan2(math.sqrt(x), math.sqrt(1 - x))
+    return r * y
 
-            <div class="section">
-                <h3>Orden sugerido</h3>
 
-                {% for p in ruta %}
-                    <div class="card">
-                        <p><strong>{{ p.orden }}. {{ p.cliente }}</strong></p>
-                        <p>{{ p.direccion }} - {{ p.localidad }}</p>
+def link_google_maps_coords(lat, lon):
+    return f"https://www.google.com/maps?q={lat},{lon}"
 
-                        {% if p.encontrada %}
-                            <p class="ok">Ubicación encontrada</p>
-                            <p class="small">Distancia estimada desde la parada anterior: {{ p.distancia_desde_anterior_km }} km</p>
-                        {% else %}
-                            <p class="warning">No se encuentra. Se envía al final del recorrido.</p>
-                        {% endif %}
 
-                        <p><a href="{{ p.link_individual }}" target="_blank">Ver ubicación individual</a></p>
-                    </div>
-                {% endfor %}
-            </div>
+def buscar_evento_mas_cercano(destino_coords, eventos):
+    mejor = None
+    mejor_dist = None
 
-            <div class="section">
-                <h3>Corrección manual de paradas</h3>
-                <p>Si una dirección o localidad quedó mal, corregila y tocá <strong>Recalcular ruta</strong>.</p>
+    for ev in eventos:
+        dist = haversine_metros(destino_coords, ev["coordenadas"])
+        if mejor_dist is None or dist < mejor_dist:
+            mejor_dist = dist
+            mejor = ev
 
-                <form method="POST">
-                    <input type="hidden" name="accion" value="recalcular">
-                    <input type="hidden" name="deposito_key" value="{{ deposito_key }}">
-                    <input type="hidden" name="nro_hoja" value="{{ nro_hoja if nro_hoja else '' }}">
+    return mejor, mejor_dist
 
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Cliente</th>
-                                <th>Dirección</th>
-                                <th>Localidad</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for p in paradas_editables %}
-                                <tr>
-                                    <td>
-                                        <input type="text" name="cliente[]" value="{{ p.cliente }}">
-                                    </td>
-                                    <td>
-                                        <input type="text" name="direccion[]" value="{{ p.direccion }}">
-                                    </td>
-                                    <td>
-                                        <input type="text" name="localidad[]" value="{{ p.localidad }}">
-                                    </td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
 
-                    <button type="submit">Recalcular ruta con correcciones</button>
-                </form>
-            </div>
-        {% endif %}
-    </div>
-</body>
-</html>
+def procesar_cruce_completo(hoja_ruta_nro, paradas, eventos, margen_metros=50):
+    eventos_procesados = []
+    for ev in eventos:
+        lat, lon = ev["coordenadas"]
+        item = dict(ev)
+        item["link_mapa"] = link_google_maps_coords(lat, lon)
+        eventos_procesados.append(item)
+
+    paradas_procesadas = []
+    cumplidos = 0
+    no_cumplidos = 0
+    sin_coord = 0
+
+    for idx, parada in enumerate(paradas, start=1):
+        item = dict(parada)
+        item["orden"] = idx
+
+        geo = geocodificar_direccion(item["direccion"], item["localidad"])
+        if not geo:
+            item["destino_coords"] = None
+            item["destino_link"] = None
+            item["estado"] = "Sin coordenadas de destino"
+            item["distancia_evento_mas_cercano_m"] = None
+            item["evento_mas_cercano"] = None
+            item["consulta_usada"] = None
+            sin_coord += 1
+            paradas_procesadas.append(item)
+            continue
+
+        item["destino_coords"] = (geo["lat"], geo["lon"])
+        item["destino_link"] = link_google_maps_coords(geo["lat"], geo["lon"])
+        item["consulta_usada"] = geo["consulta_usada"]
+
+        evento_cercano, distancia_m = buscar_evento_mas_cercano(item["destino_coords"], eventos_procesados)
+
+        item["distancia_evento_mas_cercano_m"] = round(distancia_m, 1) if distancia_m is not None else None
+        item["evento_mas_cercano"] = evento_cercano
+
+        if evento_cercano and distancia_m is not None and distancia_m <= margen_metros:
+            item["estado"] = "Cumplido"
+            cumplidos += 1
+        else:
+            item["estado"] = "No cumplido"
+            no_cumplidos += 1
+
+        paradas_procesadas.append(item)
+
+    resumen = {
+        "hoja_ruta_nro": hoja_ruta_nro,
+        "total_paradas": len(paradas_procesadas),
+        "total_eventos": len(eventos_procesados),
+        "cumplidos": cumplidos,
+        "no_cumplidos": no_cumplidos,
+        "sin_coord": sin_coord,
+        "margen_metros": margen_metros
+    }
+
+    return resumen, paradas_procesadas, eventos_procesados
