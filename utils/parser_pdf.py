@@ -38,7 +38,7 @@ def texto_en_rango(words, x_min, x_max):
 
 
 def extraer_remito(texto_documentos: str):
-    match = re.search(r"(R-\d{4}-\d{8})", texto_documentos, re.IGNORECASE)
+    match = re.search(r"(R-\d{4}-\d{8})", texto_documentos or "", re.IGNORECASE)
     return match.group(1) if match else ""
 
 
@@ -66,7 +66,6 @@ def normalizar_domicilio(domicilio: str) -> str:
     reemplazos = [
         (r"(?i)^pje[\.\s]+", "Pasaje "),
         (r"(?i)^av[\.\s]+", "Avenida "),
-        (r"(?i)^av\.", "Avenida "),
         (r"(?i)^av\.", "Avenida "),
     ]
 
@@ -134,7 +133,6 @@ def extraer_paradas_pdf(file_storage):
 
             ancho = page.width
 
-            # Cortes de columna aproximados según tu diseño de hoja
             x_cliente_min = 0
             x_cliente_max = ancho * 0.25
 
