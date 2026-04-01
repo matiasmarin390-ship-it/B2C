@@ -23,7 +23,6 @@
         th { background:#f1f5f9; }
         .ok { color:#15803d; font-weight:bold; }
         .bad { color:#b91c1c; font-weight:bold; }
-        .warn { color:#92400e; font-weight:bold; }
         a { color:#1d4ed8; text-decoration:none; font-weight:bold; }
         a:hover { text-decoration:underline; }
         .small { color:#555; font-size:13px; }
@@ -63,10 +62,8 @@
             <p><strong>Hoja de ruta:</strong> {{ resumen.hoja_ruta_nro if resumen.hoja_ruta_nro else 'No detectada' }}</p>
             <p><strong>Total paradas:</strong> {{ resumen.total_paradas }}</p>
             <p><strong>Total eventos analizados:</strong> {{ resumen.total_eventos }}</p>
-            <p><strong>Margen de validación:</strong> {{ resumen.margen_metros }} metros</p>
             <p><strong class="ok">Cumplidos:</strong> {{ resumen.cumplidos }}</p>
             <p><strong class="bad">No cumplidos:</strong> {{ resumen.no_cumplidos }}</p>
-            <p><strong class="warn">Sin coordenadas de destino:</strong> {{ resumen.sin_coord }}</p>
         </div>
 
         <h2>Paradas de la hoja de ruta</h2>
@@ -77,9 +74,8 @@
                     <th>Cliente</th>
                     <th>Dirección hoja</th>
                     <th>Estado</th>
-                    <th>Distancia al evento más cercano</th>
-                    <th>Evento más cercano</th>
-                    <th>Mapa destino</th>
+                    <th>Score</th>
+                    <th>Evento asociado</th>
                     <th>Mapa evento</th>
                 </tr>
             </thead>
@@ -88,49 +84,28 @@
                 <tr>
                     <td>{{ p.orden }}</td>
                     <td>{{ p.cliente }}</td>
-                    <td>
-                        <div>{{ p.direccion }} - {{ p.localidad }}</div>
-                        {% if p.consulta_usada %}
-                            <div class="small">Consulta usada: {{ p.consulta_usada }}</div>
-                        {% endif %}
-                    </td>
+                    <td>{{ p.direccion }} - {{ p.localidad }}</td>
                     <td>
                         {% if p.estado == 'Cumplido' %}
                             <span class="ok">{{ p.estado }}</span>
-                        {% elif p.estado == 'No cumplido' %}
+                        {% else %}
                             <span class="bad">{{ p.estado }}</span>
-                        {% else %}
-                            <span class="warn">{{ p.estado }}</span>
                         {% endif %}
                     </td>
-                    <td>
-                        {% if p.distancia_evento_mas_cercano_m is not none %}
-                            {{ p.distancia_evento_mas_cercano_m }} m
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
+                    <td>{{ p.score }}</td>
                     <td>
                         {% if p.evento_mas_cercano %}
                             <div><strong>{{ p.evento_mas_cercano.evento }}</strong></div>
                             <div class="small">{{ p.evento_mas_cercano.fecha }}</div>
-                            {% if p.evento_mas_cercano.ubicacion %}
-                                <div class="small">{{ p.evento_mas_cercano.ubicacion }}</div>
-                            {% endif %}
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if p.destino_link %}
-                            <a href="{{ p.destino_link }}" target="_blank">Ver destino</a>
+                            <div class="small">{{ p.evento_mas_cercano.ubicacion if p.evento_mas_cercano.ubicacion else '-' }}</div>
+                            <div class="small">{{ p.evento_mas_cercano.punto_cercano if p.evento_mas_cercano.punto_cercano else '-' }}</div>
                         {% else %}
                             -
                         {% endif %}
                     </td>
                     <td>
                         {% if p.evento_mas_cercano %}
-                            <a href="{{ p.evento_mas_cercano.link_mapa }}" target="_blank">Ver evento</a>
+                            <a href="{{ p.evento_mas_cercano.link_mapa }}" target="_blank">Ver punto</a>
                         {% else %}
                             -
                         {% endif %}
