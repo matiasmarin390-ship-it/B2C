@@ -4,7 +4,7 @@ from collections import defaultdict
 
 
 def limpiar(texto: str) -> str:
-    texto = texto.replace("\xa0", " ")
+    texto = (texto or "").replace("\xa0", " ")
     texto = re.sub(r"\s+", " ", texto)
     return texto.strip()
 
@@ -16,16 +16,13 @@ def extraer_nro_hoja(texto: str):
 
 def agrupar_por_linea(words, tolerancia=3):
     lineas = defaultdict(list)
-
     for w in words:
         top_key = round(w["top"] / tolerancia) * tolerancia
         lineas[top_key].append(w)
 
     resultado = []
     for _, items in sorted(lineas.items(), key=lambda x: x[0]):
-        items_ordenados = sorted(items, key=lambda x: x["x0"])
-        resultado.append(items_ordenados)
-
+        resultado.append(sorted(items, key=lambda x: x["x0"]))
     return resultado
 
 
@@ -34,28 +31,44 @@ def texto_en_rango(words, x_min, x_max):
     return limpiar(" ".join(partes))
 
 
+def normalizar_localidad(localidad: str) -> str:
+    loc = limpiar(localidad)
+
+    reemplazos = {
+        "CAPITAL FEDERAL": "Capital Federal",
+        "Ciudad Autónoma": "Ciudad Autónoma",
+        "Velez Sarsfield": "Vélez Sarsfield",
+        "San Cristobal": "San Cristóbal",
+        "Villa Santa Rit": "Villa Santa Rita",
+        "Jose Clemente P": "José C. Paz",
+        "Jose C. Paz": "José C. Paz",
+    }
+    return reemplazos.get(loc, loc)
+
+
+def normalizar_domicilio(domicilio: str) -> str:
+    d = limpiar(domicilio)
+
+    reemplazos = [
+        (r"(?i)^pje[\.\s]+", "Pasaje "),
+        (r"(?i)^av[\.\s]+", "Avenida "),
+        (r"(?i)^av\.", "Avenida "),
+    ]
+    for patron, nuevo in reemplazos:
+        d = re.sub(patron, nuevo, d)
+
+    return limpiar(d)
+
+
 def es_fila_datos(cliente, domicilio, localidad):
     if not domicilio:
         return False
 
     bloqueados = [
-        "Cliente/Expreso",
-        "Domicilio",
-        "Localidad",
-        "Documentos",
-        "COT",
-        "Cant.",
-        "Novedades",
-        "m3 Total Viaje",
-        "Total Documentos",
-        "CHOFER",
-        "Firma:",
-        "Aclaración:",
-        "SALIDA",
-        "ARRIBO",
-        "CONTROLADOR",
-        "OBSERVACIONES",
-        "IMPORTANTE",
+        "Cliente/Expreso", "Domicilio", "Localidad", "Documentos", "COT",
+        "Cant.", "Remito", "Novedades", "m3 Total Viaje", "Total Documentos",
+        "CHOFER", "Firma:", "Aclaración:", "SALIDA", "ARRIBO",
+        "CONTROLADOR", "OBSERVACIONES", "IMPORTANTE"
     ]
 
     todo = f"{cliente} {domicilio} {localidad}".lower()
@@ -63,30 +76,10 @@ def es_fila_datos(cliente, domicilio, localidad):
         if b.lower() in todo:
             return False
 
-    # Debe tener al menos un número en el domicilio
-    if not re.search(r"\d", domicilio):
-        return False
-
-    return True
+    return bool(re.search(r"\d", domicilio))
 
 
-def normalizar_localidad(localidad: str):
-    if not localidad:
-        return "Sin localidad"
-
-    loc = limpiar(localidad)
-
-    reemplazos = {
-        "Jose Clemente P": "José C. Paz",
-        "Jose C. Paz": "José C. Paz",
-        "Jose C Paz": "José C. Paz",
-        "CAPITAL FEDERAL": "Capital Federal",
-    }
-
-    return reemplazos.get(loc, loc)
-
-
-def extraer_paradas_y_hoja(file_storage):
+def extraer_paradas_pdf(file_storage):
     nro_hoja = None
     paradas = []
     vistos = set()
@@ -104,13 +97,11 @@ def extraer_paradas_y_hoja(file_storage):
                 keep_blank_chars=False,
                 use_text_flow=True
             )
-
             if not words:
                 continue
 
             ancho = page.width
 
-            # Rangos aproximados de columnas en base al formato de tus hojas
             x_cliente_min = 0
             x_cliente_max = ancho * 0.28
 
@@ -141,6 +132,7 @@ def extraer_paradas_y_hoja(file_storage):
                 domicilio = texto_en_rango(linea_words, x_domicilio_min, x_domicilio_max)
                 localidad = texto_en_rango(linea_words, x_localidad_min, x_localidad_max)
 
+                domicilio = normalizar_domicilio(domicilio)
                 localidad = normalizar_localidad(localidad)
 
                 if not es_fila_datos(cliente, domicilio, localidad):
