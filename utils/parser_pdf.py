@@ -37,6 +37,11 @@ def texto_en_rango(words, x_min, x_max):
     return limpiar(" ".join(partes))
 
 
+def extraer_remito(texto_documentos: str):
+    match = re.search(r"(R-\d{4}-\d{8})", texto_documentos, re.IGNORECASE)
+    return match.group(1) if match else ""
+
+
 def normalizar_localidad(localidad: str) -> str:
     loc = limpiar(localidad)
 
@@ -62,6 +67,7 @@ def normalizar_domicilio(domicilio: str) -> str:
         (r"(?i)^pje[\.\s]+", "Pasaje "),
         (r"(?i)^av[\.\s]+", "Avenida "),
         (r"(?i)^av\.", "Avenida "),
+        (r"(?i)^av\.", "Avenida "),
     ]
 
     for patron, nuevo in reemplazos:
@@ -70,7 +76,7 @@ def normalizar_domicilio(domicilio: str) -> str:
     return limpiar(d)
 
 
-def es_fila_datos(cliente, domicilio, localidad):
+def es_fila_datos(cliente, domicilio, localidad, documentos):
     if not domicilio:
         return False
 
@@ -95,7 +101,7 @@ def es_fila_datos(cliente, domicilio, localidad):
         "IMPORTANTE",
     ]
 
-    todo = f"{cliente} {domicilio} {localidad}".lower()
+    todo = f"{cliente} {domicilio} {localidad} {documentos}".lower()
     for b in bloqueados:
         if b.lower() in todo:
             return False
@@ -128,14 +134,18 @@ def extraer_paradas_pdf(file_storage):
 
             ancho = page.width
 
+            # Cortes de columna aproximados según tu diseño de hoja
             x_cliente_min = 0
-            x_cliente_max = ancho * 0.28
+            x_cliente_max = ancho * 0.25
 
-            x_domicilio_min = ancho * 0.28
-            x_domicilio_max = ancho * 0.56
+            x_domicilio_min = ancho * 0.25
+            x_domicilio_max = ancho * 0.52
 
-            x_localidad_min = ancho * 0.56
-            x_localidad_max = ancho * 0.72
+            x_localidad_min = ancho * 0.52
+            x_localidad_max = ancho * 0.67
+
+            x_documentos_min = ancho * 0.67
+            x_documentos_max = ancho * 0.83
 
             lineas = agrupar_por_linea(words, tolerancia=3)
             dentro_tabla = False
@@ -156,14 +166,16 @@ def extraer_paradas_pdf(file_storage):
                 cliente = texto_en_rango(linea_words, x_cliente_min, x_cliente_max)
                 domicilio = texto_en_rango(linea_words, x_domicilio_min, x_domicilio_max)
                 localidad = texto_en_rango(linea_words, x_localidad_min, x_localidad_max)
+                documentos = texto_en_rango(linea_words, x_documentos_min, x_documentos_max)
 
                 domicilio = normalizar_domicilio(domicilio)
                 localidad = normalizar_localidad(localidad)
+                remito = extraer_remito(documentos)
 
-                if not es_fila_datos(cliente, domicilio, localidad):
+                if not es_fila_datos(cliente, domicilio, localidad, documentos):
                     continue
 
-                key = f"{domicilio}|{localidad}".lower()
+                key = f"{domicilio}|{localidad}|{remito}".lower()
                 if key in vistos:
                     continue
                 vistos.add(key)
@@ -171,7 +183,8 @@ def extraer_paradas_pdf(file_storage):
                 paradas.append({
                     "cliente": cliente or "Cliente",
                     "direccion": domicilio,
-                    "localidad": localidad
+                    "localidad": localidad,
+                    "remito": remito
                 })
 
     return nro_hoja, paradas
