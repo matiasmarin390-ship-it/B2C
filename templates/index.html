@@ -6,7 +6,7 @@
     <title>Auditoría Hoja de Ruta vs Histórico</title>
     <style>
         body { font-family: Arial, sans-serif; background:#f4f6f8; margin:0; padding:0; }
-        .container { max-width: 1400px; margin: 30px auto; background:#fff; padding:24px; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.08); }
+        .container { max-width: 1450px; margin: 30px auto; background:#fff; padding:24px; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.08); }
         h1, h2, h3 { color:#1d3557; }
         .row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
         .field { flex:1; min-width:260px; }
@@ -78,6 +78,7 @@
                     <th>Estado</th>
                     <th>Score</th>
                     <th>Evento asociado</th>
+                    <th>Dirección interpretada del evento</th>
                     <th>Mapa evento</th>
                 </tr>
             </thead>
@@ -109,6 +110,13 @@
                     </td>
                     <td>
                         {% if p.evento_mas_cercano %}
+                            {{ p.evento_mas_cercano.direccion_inferida if p.evento_mas_cercano.direccion_inferida else '-' }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if p.evento_mas_cercano %}
                             <a href="{{ p.evento_mas_cercano.link_mapa }}" target="_blank">Ver punto</a>
                         {% else %}
                             -
@@ -127,6 +135,7 @@
                     <th>Evento</th>
                     <th>Ubicación</th>
                     <th>Punto cercano</th>
+                    <th>Dirección interpretada</th>
                     <th>Coordenadas</th>
                     <th>Google Maps</th>
                 </tr>
@@ -138,6 +147,7 @@
                     <td>{{ e.evento }}</td>
                     <td>{{ e.ubicacion if e.ubicacion else '-' }}</td>
                     <td>{{ e.punto_cercano if e.punto_cercano else '-' }}</td>
+                    <td>{{ e.direccion_inferida if e.direccion_inferida else '-' }}</td>
                     <td>{{ e.coordenadas[0] }}, {{ e.coordenadas[1] }}</td>
                     <td><a href="{{ e.link_mapa }}" target="_blank">Ver punto</a></td>
                 </tr>
