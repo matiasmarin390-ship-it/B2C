@@ -1,7 +1,7 @@
 import os
 from flask import Flask, render_template, request
 
-from utils.parser_pdf import extraer_paradas_pdf
+from utils.parser_ruta_excel import extraer_paradas_ruta_excel
 from utils.parser_xlsx import extraer_datos_xlsx
 from utils.matcher import procesar_cruce_completo
 
@@ -25,19 +25,19 @@ def index():
         )
 
     try:
-        pdf_file = request.files.get("pdf_file")
-        xlsx_file = request.files.get("xlsx_file")
+        ruta_file = request.files.get("ruta_file")
+        historico_file = request.files.get("historico_file")
 
-        if not pdf_file or pdf_file.filename == "":
+        if not ruta_file or ruta_file.filename == "":
             return render_template(
                 "index.html",
                 resumen=None,
                 paradas=None,
                 eventos=None,
-                error="Falta adjuntar la hoja de ruta en PDF."
+                error="Falta adjuntar el Excel de hoja de ruta."
             ), 400
 
-        if not xlsx_file or xlsx_file.filename == "":
+        if not historico_file or historico_file.filename == "":
             return render_template(
                 "index.html",
                 resumen=None,
@@ -46,8 +46,8 @@ def index():
                 error="Falta adjuntar el histórico en Excel."
             ), 400
 
-        hoja_ruta_nro, paradas = extraer_paradas_pdf(pdf_file)
-        eventos = extraer_datos_xlsx(xlsx_file)
+        hoja_ruta_nro, paradas = extraer_paradas_ruta_excel(ruta_file)
+        eventos = extraer_datos_xlsx(historico_file)
 
         if not paradas:
             return render_template(
@@ -55,7 +55,7 @@ def index():
                 resumen=None,
                 paradas=None,
                 eventos=None,
-                error="No se pudieron detectar paradas en la hoja de ruta."
+                error="No se pudieron detectar paradas en el Excel de hoja de ruta."
             ), 400
 
         if not eventos:
