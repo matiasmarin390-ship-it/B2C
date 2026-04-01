@@ -1,45 +1,29 @@
-import pdfplumber
+import pandas as pd
+import math
 import re
-from collections import defaultdict
 
 
-def limpiar(texto: str) -> str:
-    texto = (texto or "").replace("\xa0", " ")
+def limpiar(texto):
+    if texto is None or (isinstance(texto, float) and math.isnan(texto)):
+        return ""
+    texto = str(texto).replace("\xa0", " ")
     texto = re.sub(r"\s+", " ", texto)
     return texto.strip()
 
 
-def extraer_nro_hoja(texto: str):
-    match = re.search(
-        r"Impresi[oó]n de Hoja de Ruta Nro\.\s*:\s*(\d+)",
-        texto,
-        re.IGNORECASE
-    )
-    return match.group(1) if match else None
+def normalizar_domicilio(domicilio: str) -> str:
+    d = limpiar(domicilio)
 
+    reemplazos = [
+        (r"(?i)^pje[\.\s]+", "Pasaje "),
+        (r"(?i)^av[\.\s]+", "Avenida "),
+        (r"(?i)^av\.", "Avenida "),
+    ]
 
-def agrupar_por_linea(words, tolerancia=3):
-    lineas = defaultdict(list)
+    for patron, nuevo in reemplazos:
+        d = re.sub(patron, nuevo, d)
 
-    for word in words:
-        top_key = round(word["top"] / tolerancia) * tolerancia
-        lineas[top_key].append(word)
-
-    resultado = []
-    for _, items in sorted(lineas.items(), key=lambda x: x[0]):
-        resultado.append(sorted(items, key=lambda x: x["x0"]))
-
-    return resultado
-
-
-def texto_en_rango(words, x_min, x_max):
-    partes = [w["text"] for w in words if w["x0"] >= x_min and w["x0"] < x_max]
-    return limpiar(" ".join(partes))
-
-
-def extraer_remito(texto_documentos: str):
-    match = re.search(r"(R-\d{4}-\d{8})", texto_documentos or "", re.IGNORECASE)
-    return match.group(1) if match else ""
+    return limpiar(d)
 
 
 def normalizar_localidad(localidad: str) -> str:
@@ -60,129 +44,56 @@ def normalizar_localidad(localidad: str) -> str:
     return reemplazos.get(loc, loc)
 
 
-def normalizar_domicilio(domicilio: str) -> str:
-    d = limpiar(domicilio)
-
-    reemplazos = [
-        (r"(?i)^pje[\.\s]+", "Pasaje "),
-        (r"(?i)^av[\.\s]+", "Avenida "),
-        (r"(?i)^av\.", "Avenida "),
-    ]
-
-    for patron, nuevo in reemplazos:
-        d = re.sub(patron, nuevo, d)
-
-    return limpiar(d)
+def es_remito(valor: str) -> bool:
+    return bool(re.match(r"^R-\d{4}-\d{8}$", limpiar(valor), re.IGNORECASE))
 
 
-def es_fila_datos(cliente, domicilio, localidad, documentos):
-    if not domicilio:
-        return False
+def extraer_paradas_ruta_excel(file_storage):
+    df = pd.read_excel(file_storage, sheet_name=0)
 
-    bloqueados = [
-        "Cliente/Expreso",
-        "Domicilio",
-        "Localidad",
-        "Documentos",
-        "COT",
-        "Cant.",
-        "Remito",
-        "Novedades",
-        "m3 Total Viaje",
-        "Total Documentos",
-        "CHOFER",
-        "Firma:",
-        "Aclaración:",
-        "SALIDA",
-        "ARRIBO",
-        "CONTROLADOR",
-        "OBSERVACIONES",
-        "IMPORTANTE",
-    ]
+    columnas = {str(c).strip().upper(): c for c in df.columns}
 
-    todo = f"{cliente} {domicilio} {localidad} {documentos}".lower()
-    for b in bloqueados:
-        if b.lower() in todo:
-            return False
+    col_hoja = columnas.get("HOJA_RUTA_NRO")
+    col_cliente = columnas.get("CLIENTE_EXPRESO")
+    col_domicilio = columnas.get("DROP_DOMICILIO")
+    col_ciudad = columnas.get("DROP_CIUDAD")
+    col_documentos = columnas.get("DOCUMENTOS")
 
-    return bool(re.search(r"\d", domicilio))
+    if not col_domicilio or not col_ciudad:
+        raise ValueError("El Excel de hoja de ruta debe tener las columnas DROP_DOMICILIO y DROP_CIUDAD.")
 
-
-def extraer_paradas_pdf(file_storage):
-    nro_hoja = None
+    hoja_ruta_nro = None
     paradas = []
     vistos = set()
 
-    with pdfplumber.open(file_storage) as pdf:
-        texto_total = []
-        for page in pdf.pages:
-            texto_total.append(page.extract_text() or "")
+    for _, row in df.iterrows():
+        cliente = limpiar(row.get(col_cliente)) if col_cliente else "Cliente"
+        direccion = normalizar_domicilio(row.get(col_domicilio))
+        localidad = normalizar_localidad(row.get(col_ciudad))
+        remito = limpiar(row.get(col_documentos)) if col_documentos else ""
 
-        nro_hoja = extraer_nro_hoja("\n".join(texto_total))
+        if not direccion:
+            continue
 
-        for page in pdf.pages:
-            words = page.extract_words(
-                x_tolerance=2,
-                y_tolerance=2,
-                keep_blank_chars=False,
-                use_text_flow=True
-            )
+        if not localidad:
+            localidad = "Sin localidad"
 
-            if not words:
-                continue
+        if remito and not es_remito(remito):
+            remito = ""
 
-            ancho = page.width
+        if hoja_ruta_nro is None and col_hoja:
+            hoja_ruta_nro = limpiar(row.get(col_hoja))
 
-            x_cliente_min = 0
-            x_cliente_max = ancho * 0.25
+        key = f"{direccion}|{localidad}|{remito}|{cliente}".lower()
+        if key in vistos:
+            continue
+        vistos.add(key)
 
-            x_domicilio_min = ancho * 0.25
-            x_domicilio_max = ancho * 0.52
+        paradas.append({
+            "cliente": cliente or "Cliente",
+            "direccion": direccion,
+            "localidad": localidad,
+            "remito": remito
+        })
 
-            x_localidad_min = ancho * 0.52
-            x_localidad_max = ancho * 0.67
-
-            x_documentos_min = ancho * 0.67
-            x_documentos_max = ancho * 0.83
-
-            lineas = agrupar_por_linea(words, tolerancia=3)
-            dentro_tabla = False
-
-            for linea_words in lineas:
-                texto_linea = limpiar(" ".join(w["text"] for w in linea_words))
-
-                if "Cliente/Expreso" in texto_linea and "Domicilio" in texto_linea and "Localidad" in texto_linea:
-                    dentro_tabla = True
-                    continue
-
-                if not dentro_tabla:
-                    continue
-
-                if "m3 Total Viaje" in texto_linea or "Total Documentos" in texto_linea:
-                    break
-
-                cliente = texto_en_rango(linea_words, x_cliente_min, x_cliente_max)
-                domicilio = texto_en_rango(linea_words, x_domicilio_min, x_domicilio_max)
-                localidad = texto_en_rango(linea_words, x_localidad_min, x_localidad_max)
-                documentos = texto_en_rango(linea_words, x_documentos_min, x_documentos_max)
-
-                domicilio = normalizar_domicilio(domicilio)
-                localidad = normalizar_localidad(localidad)
-                remito = extraer_remito(documentos)
-
-                if not es_fila_datos(cliente, domicilio, localidad, documentos):
-                    continue
-
-                key = f"{domicilio}|{localidad}|{remito}".lower()
-                if key in vistos:
-                    continue
-                vistos.add(key)
-
-                paradas.append({
-                    "cliente": cliente or "Cliente",
-                    "direccion": domicilio,
-                    "localidad": localidad,
-                    "remito": remito
-                })
-
-    return nro_hoja, paradas
+    return hoja_ruta_nro, paradas
