@@ -33,7 +33,7 @@ def extraer_datos_xlsx(file_storage):
     xls = pd.ExcelFile(file_storage)
 
     if "Resultados" not in xls.sheet_names:
-        raise ValueError("El Excel no contiene la solapa Resultados.")
+        raise ValueError("El Excel histórico no contiene la solapa Resultados.")
 
     df_res = pd.read_excel(xls, sheet_name="Resultados")
     columnas_res = {str(c).strip().lower(): c for c in df_res.columns}
