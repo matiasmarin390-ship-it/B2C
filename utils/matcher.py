@@ -1,12 +1,11 @@
-import math
-
-
 def normalizar_texto(txt):
     if not txt:
         return ""
+
     txt = str(txt).lower()
     txt = txt.replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u")
-    txt = txt.replace(".", "").replace(",", "")
+    txt = txt.replace(".", " ").replace(",", " ").replace(";", " ").replace(":", " ")
+    txt = " ".join(txt.split())
     return txt.strip()
 
 
@@ -14,22 +13,48 @@ def link_google_maps_coords(lat, lon):
     return f"https://www.google.com/maps?q={lat},{lon}"
 
 
-def score_match(parada, evento):
-    direccion = normalizar_texto(parada["direccion"])
-    localidad = normalizar_texto(parada["localidad"])
+def palabras_relevantes_direccion(direccion):
+    texto = normalizar_texto(direccion)
 
-    texto_evento = normalizar_texto(evento.get("ubicacion", "")) + " " + normalizar_texto(evento.get("punto_cercano", ""))
+    sacar = {
+        "calle", "avenida", "av", "pasaje", "pje", "sn", "s/n"
+    }
+
+    tokens = []
+    for token in texto.split():
+        if token in sacar:
+            continue
+        tokens.append(token)
+
+    return tokens
+
+
+def score_match(parada, evento):
+    direccion = normalizar_texto(parada.get("direccion", ""))
+    localidad = normalizar_texto(parada.get("localidad", ""))
+
+    texto_evento = " ".join([
+        normalizar_texto(evento.get("ubicacion", "")),
+        normalizar_texto(evento.get("punto_cercano", "")),
+        normalizar_texto(evento.get("evento", "")),
+    ]).strip()
+
+    if not texto_evento:
+        return 0
 
     score = 0
 
-    # coincidencia por calle
-    for palabra in direccion.split():
-        if palabra in texto_evento:
+    for palabra in palabras_relevantes_direccion(direccion):
+        if palabra and palabra in texto_evento:
             score += 2
 
-    # coincidencia por localidad
     if localidad and localidad in texto_evento:
         score += 3
+
+    # bonus si aparece el número exacto
+    for token in direccion.split():
+        if token.isdigit() and token in texto_evento:
+            score += 3
 
     return score
 
@@ -38,28 +63,25 @@ def buscar_evento_mas_relevante(parada, eventos):
     mejor = None
     mejor_score = 0
 
-    for ev in eventos:
-        s = score_match(parada, ev)
-        if s > mejor_score:
-            mejor_score = s
-            mejor = ev
+    for evento in eventos:
+        score = score_match(parada, evento)
+        if score > mejor_score:
+            mejor_score = score
+            mejor = evento
 
     return mejor, mejor_score
 
 
-def procesar_cruce_completo(hoja_ruta_nro, paradas, eventos, margen_metros=50):
+def procesar_cruce_completo(hoja_ruta_nro, paradas, eventos):
     eventos_procesados = []
 
     for ev in eventos:
         lat, lon = ev["coordenadas"]
-
         item = dict(ev)
         item["link_mapa"] = link_google_maps_coords(lat, lon)
-
         eventos_procesados.append(item)
 
     paradas_procesadas = []
-
     cumplidos = 0
     no_cumplidos = 0
 
