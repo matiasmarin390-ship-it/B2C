@@ -66,31 +66,36 @@ def extraer_datos_xlsx(file_storage):
                     })
 
     eventos = []
+    track_points = []
 
-    for _, row in df_res.iterrows():
+    for idx, row in df_res.iterrows():
         evento = limpiar(row.get(col_evento))
-        if not evento:
-            continue
-
-        if evento.lower() in ("posición", "posicion"):
-            continue
-
         coords = parsear_coordenadas(row.get(col_coord))
+        fecha = limpiar(row.get(col_fecha)) if col_fecha else ""
+
         if not coords:
             continue
 
-        direccion_inferida = ""
-        if detenciones:
-            mejor = min(detenciones, key=lambda d: distancia_cuadrada(coords, d["coordenadas"]))
-            direccion_inferida = mejor["direccion"]
-
-        eventos.append({
-            "fecha": limpiar(row.get(col_fecha)) if col_fecha else "",
+        base = {
+            "row_index": idx,
+            "fecha": fecha,
             "evento": evento,
             "coordenadas": coords,
             "ubicacion": limpiar(row.get(col_ubicacion)) if col_ubicacion else "",
             "punto_cercano": limpiar(row.get(col_punto)) if col_punto else "",
-            "direccion_inferida": direccion_inferida,
-        })
+            "direccion_inferida": "",
+        }
 
-    return eventos
+        if detenciones:
+            mejor = min(detenciones, key=lambda d: distancia_cuadrada(coords, d["coordenadas"]))
+            base["direccion_inferida"] = mejor["direccion"]
+
+        track_points.append(dict(base))
+
+        if evento and evento.lower() not in ("posición", "posicion"):
+            eventos.append(dict(base))
+
+    return {
+        "eventos": eventos,
+        "track_points": track_points
+    }
