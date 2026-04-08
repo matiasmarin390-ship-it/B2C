@@ -47,7 +47,10 @@ def index():
             ), 400
 
         hoja_ruta_nro, paradas = extraer_paradas_ruta_excel(ruta_file)
-        eventos = extraer_datos_xlsx(historico_file)
+        datos_historico = extraer_datos_xlsx(historico_file)
+
+        eventos = datos_historico["eventos"]
+        track_points = datos_historico["track_points"]
 
         if not paradas:
             return render_template(
@@ -70,7 +73,8 @@ def index():
         resumen, paradas_procesadas, eventos_procesados = procesar_cruce_completo(
             hoja_ruta_nro=hoja_ruta_nro,
             paradas=paradas,
-            eventos=eventos
+            eventos=eventos,
+            track_points=track_points
         )
 
         return render_template(
