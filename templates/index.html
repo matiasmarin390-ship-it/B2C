@@ -1,171 +1,30 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Auditoría Hoja de Ruta vs Histórico</title>
-    <style>
-        body { font-family: Arial, sans-serif; background:#f4f6f8; margin:0; padding:0; }
-        .container { max-width: 1450px; margin: 30px auto; background:#fff; padding:24px; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.08); }
-        h1, h2, h3 { color:#1d3557; }
-        .row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
-        .field { flex:1; min-width:260px; }
-        label { display:block; margin-bottom:8px; font-weight:bold; }
-        input[type=file], button {
-            width:100%; padding:12px; border:1px solid #d0d7de; border-radius:8px; font-size:15px; box-sizing:border-box;
-        }
-        button { background:#1d4ed8; color:#fff; border:none; cursor:pointer; font-weight:bold; }
-        button:hover { background:#1e40af; }
-        .error { background:#fee2e2; color:#991b1b; padding:12px; border-radius:8px; margin:16px 0; }
-        .summary { background:#eef5ff; padding:16px; border-radius:10px; margin:20px 0; border-left:5px solid #1d4ed8; }
-        table { width:100%; border-collapse:collapse; margin-top:16px; margin-bottom:28px; }
-        th, td { border:1px solid #dbe2ea; padding:10px; text-align:left; vertical-align:top; }
-        th { background:#f1f5f9; }
-        .ok { color:#15803d; font-weight:bold; }
-        .bad { color:#b91c1c; font-weight:bold; }
-        a { color:#1d4ed8; text-decoration:none; font-weight:bold; }
-        a:hover { text-decoration:underline; }
-        .small { color:#555; font-size:13px; }
-    </style>
-</head>
-<body>
-<div class="container">
-    <h1>Auditoría de hoja de ruta vs histórico</h1>
-    <p>Subí el Excel de hoja de ruta y el Excel histórico. La hoja de ruta usa <strong>DROP_DOMICILIO</strong> como dirección y <strong>DROP_CIUDAD</strong> como ciudad/localidad.</p>
+<h1>Auditoría</h1>
 
-    {% if error %}
-        <div class="error">{{ error }}</div>
-    {% endif %}
+<form method="POST" enctype="multipart/form-data">
+  <input type="file" name="ruta_file" required>
+  <input type="file" name="historico_file" required>
+  <button>Procesar</button>
+</form>
 
-    <form method="POST" enctype="multipart/form-data">
-        <div class="row">
-            <div class="field">
-                <label for="ruta_file">Hoja de ruta (Excel)</label>
-                <input type="file" name="ruta_file" id="ruta_file" accept=".xlsx,.xls" required>
-            </div>
+{% if resumen %}
+<h2>Resumen</h2>
+<p>Distancia: {{ resumen.distancia_total_km }} km</p>
+<p>Exactos: {{ resumen.cumplidos_exactos }}</p>
+<p>Cerca: {{ resumen.paso_cerca }}</p>
+<p>No pasó: {{ resumen.no_paso }}</p>
 
-            <div class="field">
-                <label for="historico_file">Histórico (Excel)</label>
-                <input type="file" name="historico_file" id="historico_file" accept=".xlsx,.xls" required>
-            </div>
+<h2>Paradas</h2>
+<table border="1">
+<tr>
+<th>Orden</th><th>Cliente</th><th>Estado</th>
+</tr>
 
-            <div class="field">
-                <label>&nbsp;</label>
-                <button type="submit">Procesar cruce</button>
-            </div>
-        </div>
-    </form>
-
-    {% if resumen %}
-        <div class="summary">
-            <h2>Resumen</h2>
-            <p><strong>Hoja de ruta:</strong> {{ resumen.hoja_ruta_nro if resumen.hoja_ruta_nro else 'No detectada' }}</p>
-            <p><strong>Total paradas:</strong> {{ resumen.total_paradas }}</p>
-            <p><strong>Total eventos analizados:</strong> {{ resumen.total_eventos }}</p>
-            <p><strong>Distancia total recorrida:</strong> {{ resumen.distancia_total_km }} km</p>
-            <p>
-                <strong>¿Volvió al punto de inicio?</strong>
-                {% if resumen.regreso_al_inicio %}
-                    <span class="ok">Sí</span>
-                {% else %}
-                    <span class="bad">No</span>
-                {% endif %}
-            </p>
-            <p><strong>Distancia entre inicio y fin:</strong> {{ resumen.distancia_inicio_fin_m }} m</p>
-            <p><strong class="ok">Cumplidos:</strong> {{ resumen.cumplidos }}</p>
-            <p><strong class="bad">No cumplidos:</strong> {{ resumen.no_cumplidos }}</p>
-        </div>
-
-        <h2>Paradas ordenadas según aparición en el histórico</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Orden real</th>
-                    <th>Cliente</th>
-                    <th>Dirección hoja</th>
-                    <th>Localidad</th>
-                    <th>Remito</th>
-                    <th>Estado</th>
-                    <th>Score</th>
-                    <th>Fecha evento</th>
-                    <th>Evento asociado</th>
-                    <th>Dirección interpretada del evento</th>
-                    <th>Mapa evento</th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for p in paradas %}
-                <tr>
-                    <td>{{ p.orden }}</td>
-                    <td>{{ p.cliente }}</td>
-                    <td>{{ p.direccion }}</td>
-                    <td>{{ p.localidad }}</td>
-                    <td>{{ p.remito if p.remito else '-' }}</td>
-                    <td>
-                        {% if p.estado == 'Cumplido' %}
-                            <span class="ok">{{ p.estado }}</span>
-                        {% else %}
-                            <span class="bad">{{ p.estado }}</span>
-                        {% endif %}
-                    </td>
-                    <td>{{ p.score }}</td>
-                    <td>{{ p.fecha_evento if p.fecha_evento else '-' }}</td>
-                    <td>
-                        {% if p.evento_mas_cercano %}
-                            <div><strong>{{ p.evento_mas_cercano.evento }}</strong></div>
-                            <div class="small">Ubicación: {{ p.evento_mas_cercano.ubicacion if p.evento_mas_cercano.ubicacion else '-' }}</div>
-                            <div class="small">Punto cercano: {{ p.evento_mas_cercano.punto_cercano if p.evento_mas_cercano.punto_cercano else '-' }}</div>
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if p.evento_mas_cercano %}
-                            {{ p.evento_mas_cercano.direccion_inferida if p.evento_mas_cercano.direccion_inferida else '-' }}
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if p.evento_mas_cercano %}
-                            <a href="{{ p.evento_mas_cercano.link_mapa }}" target="_blank">Ver punto</a>
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
-                </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-
-        <h2>Eventos detectados en el histórico</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Fecha</th>
-                    <th>Evento</th>
-                    <th>Ubicación</th>
-                    <th>Punto cercano</th>
-                    <th>Dirección interpretada</th>
-                    <th>Coordenadas</th>
-                    <th>Google Maps</th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for e in eventos %}
-                <tr>
-                    <td>{{ e.fecha }}</td>
-                    <td>{{ e.evento }}</td>
-                    <td>{{ e.ubicacion if e.ubicacion else '-' }}</td>
-                    <td>{{ e.punto_cercano if e.punto_cercano else '-' }}</td>
-                    <td>{{ e.direccion_inferida if e.direccion_inferida else '-' }}</td>
-                    <td>{{ e.coordenadas[0] }}, {{ e.coordenadas[1] }}</td>
-                    <td><a href="{{ e.link_mapa }}" target="_blank">Ver punto</a></td>
-                </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    {% endif %}
-</div>
-</body>
-</html>
+{% for p in paradas %}
+<tr>
+<td>{{ p.orden }}</td>
+<td>{{ p.cliente }}</td>
+<td>{{ p.estado }}</td>
+</tr>
+{% endfor %}
+</table>
+{% endif %}
