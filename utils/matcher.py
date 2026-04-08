@@ -1,122 +1,116 @@
+import math
 import re
 
 
-def normalizar_texto(txt):
+def normalizar(txt):
     if not txt:
         return ""
-
-    txt = str(txt).lower()
-    txt = txt.replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u")
-    txt = txt.replace(".", " ").replace(",", " ").replace(";", " ").replace(":", " ").replace("-", " ")
-    txt = " ".join(txt.split())
-    return txt.strip()
+    txt = txt.lower()
+    txt = txt.replace(".", " ")
+    return txt
 
 
-def link_google_maps_coords(lat, lon):
-    return f"https://www.google.com/maps?q={lat},{lon}"
+def extraer_numero(txt):
+    m = re.search(r"\d+", txt or "")
+    return m.group(0) if m else ""
 
 
-def extraer_numero(direccion):
-    match = re.search(r"\b(\d{1,6})\b", direccion or "")
-    return match.group(1) if match else ""
+def score(parada, evento):
+    dir_p = normalizar(parada["direccion"])
+    loc_p = normalizar(parada["localidad"])
+
+    texto = normalizar(
+        evento["ubicacion"] +
+        evento["punto_cercano"]
+    )
+
+    s = 0
+
+    if extraer_numero(dir_p) in texto:
+        s += 4
+
+    for palabra in dir_p.split():
+        if palabra in texto:
+            s += 2
+
+    if loc_p in texto:
+        s += 3
+
+    return s
 
 
-def extraer_calle_base(direccion):
-    texto = normalizar_texto(direccion)
-
-    remover = {"calle", "avenida", "av", "pasaje", "pje", "sn", "s/n"}
-    tokens = [t for t in texto.split() if t not in remover and not t.isdigit()]
-
-    return " ".join(tokens[:4]).strip()
-
-
-def score_match(parada, evento):
-    direccion = parada.get("direccion", "")
-    localidad = parada.get("localidad", "")
-
-    calle = extraer_calle_base(direccion)
-    numero = extraer_numero(direccion)
-    localidad_norm = normalizar_texto(localidad)
-
-    texto_evento = " ".join([
-        normalizar_texto(evento.get("ubicacion", "")),
-        normalizar_texto(evento.get("punto_cercano", "")),
-        normalizar_texto(evento.get("direccion_inferida", "")),
-        normalizar_texto(evento.get("evento", "")),
-    ]).strip()
-
-    if not texto_evento:
-        return 0
-
-    score = 0
-
-    if calle:
-        partes_calle = calle.split()
-        coincidencias = sum(1 for p in partes_calle if p in texto_evento)
-        score += coincidencias * 3
-
-        if calle in texto_evento:
-            score += 4
-
-    if numero and numero in texto_evento:
-        score += 4
-
-    if localidad_norm and localidad_norm in texto_evento:
-        score += 3
-
-    return score
+def clasificar(score):
+    if score >= 8:
+        return "Cumplido exacto"
+    elif score >= 4:
+        return "Pasó cerca"
+    else:
+        return "No pasó"
 
 
-def buscar_evento_mas_relevante(parada, eventos):
-    mejor = None
-    mejor_score = 0
+def haversine(a, b):
+    R = 6371000
+    lat1, lon1 = map(math.radians, a)
+    lat2, lon2 = map(math.radians, b)
 
-    for evento in eventos:
-        score = score_match(parada, evento)
-        if score > mejor_score:
-            mejor_score = score
-            mejor = evento
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
 
-    return mejor, mejor_score
+    x = math.sin(dlat/2)**2 + math.cos(lat1)*math.cos(lat2)*math.sin(dlon/2)**2
+    return 2 * R * math.atan2(math.sqrt(x), math.sqrt(1-x))
 
 
-def procesar_cruce_completo(hoja_ruta_nro, paradas, eventos):
-    eventos_procesados = []
+def procesar_cruce_completo(hoja, paradas, eventos, track_points):
 
-    for ev in eventos:
-        lat, lon = ev["coordenadas"]
-        item = dict(ev)
-        item["link_mapa"] = link_google_maps_coords(lat, lon)
-        eventos_procesados.append(item)
+    exacto = 0
+    cerca = 0
+    no = 0
 
-    paradas_procesadas = []
-    cumplidos = 0
-    no_cumplidos = 0
+    for p in paradas:
+        mejor = None
+        mejor_score = -1
 
-    for idx, parada in enumerate(paradas, start=1):
-        item = dict(parada)
-        item["orden"] = idx
+        for e in eventos:
+            sc = score(p, e)
+            if sc > mejor_score:
+                mejor_score = sc
+                mejor = e
 
-        evento, score = buscar_evento_mas_relevante(item, eventos_procesados)
+        estado = clasificar(mejor_score)
 
-        item["evento_mas_cercano"] = evento
-        item["score"] = score
-
-        if evento and score >= 4:
-            item["estado"] = "Cumplido"
-            cumplidos += 1
+        if estado == "Cumplido exacto":
+            exacto += 1
+        elif estado == "Pasó cerca":
+            cerca += 1
         else:
-            item["estado"] = "No cumplido"
-            no_cumplidos += 1
+            no += 1
 
-        paradas_procesadas.append(item)
+        p["evento_mas_cercano"] = mejor
+        p["score"] = mejor_score
+        p["estado"] = estado
+        p["orden"] = mejor["row_index"] if mejor else 999999
 
-    resumen = {
-        "hoja_ruta_nro": hoja_ruta_nro,
-        "total_paradas": len(paradas_procesadas),
-        "total_eventos": len(eventos_procesados),
-        "cumplidos": cumplidos,
-        "no_cumplidos": no_cumplidos,
-    }
+    paradas.sort(key=lambda x: x["orden"])
 
-    return resumen, paradas_procesadas, eventos_procesados
+    dist = 0
+    for i in range(1, len(track_points)):
+        dist += haversine(
+            track_points[i-1]["coordenadas"],
+            track_points[i]["coordenadas"]
+        )
+
+    inicio = track_points[0]["coordenadas"]
+    fin = track_points[-1]["coordenadas"]
+    regreso = haversine(inicio, fin)
+
+    return {
+        "hoja_ruta_nro": hoja,
+        "total_paradas": len(paradas),
+        "total_eventos": len(eventos),
+        "cumplidos_exactos": exacto,
+        "paso_cerca": cerca,
+        "no_paso": no,
+        "distancia_total_km": round(dist/1000, 2),
+        "regreso_al_inicio": regreso < 150,
+        "distancia_inicio_fin_m": round(regreso, 1)
+    }, paradas, eventos
