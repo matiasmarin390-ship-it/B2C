@@ -62,21 +62,32 @@
             <p><strong>Hoja de ruta:</strong> {{ resumen.hoja_ruta_nro if resumen.hoja_ruta_nro else 'No detectada' }}</p>
             <p><strong>Total paradas:</strong> {{ resumen.total_paradas }}</p>
             <p><strong>Total eventos analizados:</strong> {{ resumen.total_eventos }}</p>
+            <p><strong>Distancia total recorrida:</strong> {{ resumen.distancia_total_km }} km</p>
+            <p>
+                <strong>¿Volvió al punto de inicio?</strong>
+                {% if resumen.regreso_al_inicio %}
+                    <span class="ok">Sí</span>
+                {% else %}
+                    <span class="bad">No</span>
+                {% endif %}
+            </p>
+            <p><strong>Distancia entre inicio y fin:</strong> {{ resumen.distancia_inicio_fin_m }} m</p>
             <p><strong class="ok">Cumplidos:</strong> {{ resumen.cumplidos }}</p>
             <p><strong class="bad">No cumplidos:</strong> {{ resumen.no_cumplidos }}</p>
         </div>
 
-        <h2>Paradas de la hoja de ruta</h2>
+        <h2>Paradas ordenadas según aparición en el histórico</h2>
         <table>
             <thead>
                 <tr>
-                    <th>#</th>
+                    <th>Orden real</th>
                     <th>Cliente</th>
                     <th>Dirección hoja</th>
                     <th>Localidad</th>
                     <th>Remito</th>
                     <th>Estado</th>
                     <th>Score</th>
+                    <th>Fecha evento</th>
                     <th>Evento asociado</th>
                     <th>Dirección interpretada del evento</th>
                     <th>Mapa evento</th>
@@ -98,10 +109,10 @@
                         {% endif %}
                     </td>
                     <td>{{ p.score }}</td>
+                    <td>{{ p.fecha_evento if p.fecha_evento else '-' }}</td>
                     <td>
                         {% if p.evento_mas_cercano %}
                             <div><strong>{{ p.evento_mas_cercano.evento }}</strong></div>
-                            <div class="small">{{ p.evento_mas_cercano.fecha }}</div>
                             <div class="small">Ubicación: {{ p.evento_mas_cercano.ubicacion if p.evento_mas_cercano.ubicacion else '-' }}</div>
                             <div class="small">Punto cercano: {{ p.evento_mas_cercano.punto_cercano if p.evento_mas_cercano.punto_cercano else '-' }}</div>
                         {% else %}
