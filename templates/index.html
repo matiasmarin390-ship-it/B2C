@@ -1,30 +1,479 @@
-<h1>Auditoría</h1>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auditoría de hoja de ruta</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
 
-<form method="POST" enctype="multipart/form-data">
-  <input type="file" name="ruta_file" required>
-  <input type="file" name="historico_file" required>
-  <button>Procesar</button>
-</form>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f7fb;
+            color: #1f2937;
+        }
 
-{% if resumen %}
-<h2>Resumen</h2>
-<p>Distancia: {{ resumen.distancia_total_km }} km</p>
-<p>Exactos: {{ resumen.cumplidos_exactos }}</p>
-<p>Cerca: {{ resumen.paso_cerca }}</p>
-<p>No pasó: {{ resumen.no_paso }}</p>
+        .page {
+            max-width: 1350px;
+            margin: 30px auto;
+            padding: 0 20px 40px;
+        }
 
-<h2>Paradas</h2>
-<table border="1">
-<tr>
-<th>Orden</th><th>Cliente</th><th>Estado</th>
-</tr>
+        .card {
+            background: #ffffff;
+            border-radius: 18px;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+            padding: 28px;
+            margin-bottom: 24px;
+        }
 
-{% for p in paradas %}
-<tr>
-<td>{{ p.orden }}</td>
-<td>{{ p.cliente }}</td>
-<td>{{ p.estado }}</td>
-</tr>
-{% endfor %}
-</table>
-{% endif %}
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .title {
+            margin: 0;
+            font-size: 24px;
+            color: #163b73;
+        }
+
+        .subtitle {
+            margin: 8px 0 0;
+            color: #64748b;
+            font-size: 15px;
+            line-height: 1.5;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 16px;
+            align-items: end;
+            margin-top: 22px;
+        }
+
+        .field label {
+            display: block;
+            font-weight: 700;
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: #334155;
+        }
+
+        .field input[type="file"] {
+            width: 100%;
+            padding: 11px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            background: #fff;
+        }
+
+        .btn {
+            height: 46px;
+            min-width: 180px;
+            border: none;
+            border-radius: 10px;
+            background: #2f56d3;
+            color: white;
+            font-weight: 700;
+            font-size: 15px;
+            cursor: pointer;
+            transition: 0.2s ease;
+        }
+
+        .btn:hover {
+            background: #2447b7;
+        }
+
+        .error {
+            margin-top: 18px;
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+            border-radius: 12px;
+            padding: 14px 16px;
+            font-weight: 600;
+        }
+
+        .section-title {
+            margin: 0 0 18px;
+            font-size: 22px;
+            color: #163b73;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(180px, 1fr));
+            gap: 16px;
+        }
+
+        .metric {
+            background: #f8fbff;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 18px;
+        }
+
+        .metric-label {
+            display: block;
+            font-size: 13px;
+            color: #64748b;
+            margin-bottom: 8px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .3px;
+        }
+
+        .metric-value {
+            font-size: 28px;
+            font-weight: 800;
+            color: #0f172a;
+        }
+
+        .metric-small {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .status-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 18px;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border-radius: 999px;
+            padding: 10px 14px;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .badge.ok {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .badge.warn {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .badge.bad {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 950px;
+        }
+
+        thead th {
+            background: #eff6ff;
+            color: #1e3a8a;
+            font-size: 14px;
+            text-align: left;
+            padding: 14px 12px;
+            border-bottom: 2px solid #dbeafe;
+        }
+
+        tbody td {
+            padding: 13px 12px;
+            border-bottom: 1px solid #e5e7eb;
+            vertical-align: top;
+            font-size: 14px;
+        }
+
+        tbody tr:hover {
+            background: #fafcff;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 8px 10px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .status.exacto {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status.cerca {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status.nopaso {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .muted {
+            color: #64748b;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .link {
+            color: #2f56d3;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .link:hover {
+            text-decoration: underline;
+        }
+
+        .mini-card-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(220px, 1fr));
+            gap: 16px;
+            margin-top: 18px;
+        }
+
+        .mini-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 16px;
+        }
+
+        .mini-card h4 {
+            margin: 0 0 10px;
+            font-size: 15px;
+            color: #334155;
+        }
+
+        .mini-card p {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        @media (max-width: 980px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .btn {
+                width: 100%;
+            }
+
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .mini-card-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="card">
+            <div class="header">
+                <div>
+                    <h1 class="title">Auditoría de hoja de ruta vs histórico</h1>
+                    <p class="subtitle">
+                        Subí el Excel de hoja de ruta y el Excel histórico para validar cumplimiento,
+                        orden real de paso, distancia total recorrida y estado de cada parada.
+                    </p>
+                </div>
+            </div>
+
+            <form method="POST" enctype="multipart/form-data">
+                <div class="form-grid">
+                    <div class="field">
+                        <label for="ruta_file">Hoja de ruta (Excel)</label>
+                        <input type="file" name="ruta_file" id="ruta_file" accept=".xlsx,.xls" required>
+                    </div>
+
+                    <div class="field">
+                        <label for="historico_file">Histórico (Excel)</label>
+                        <input type="file" name="historico_file" id="historico_file" accept=".xlsx,.xls" required>
+                    </div>
+
+                    <button class="btn" type="submit">Procesar cruce</button>
+                </div>
+            </form>
+
+            {% if error %}
+                <div class="error">{{ error }}</div>
+            {% endif %}
+        </div>
+
+        {% if resumen %}
+        <div class="card">
+            <h2 class="section-title">Resumen ejecutivo</h2>
+
+            <div class="summary-grid">
+                <div class="metric">
+                    <span class="metric-label">Hoja de ruta</span>
+                    <div class="metric-value metric-small">
+                        {{ resumen.hoja_ruta_nro if resumen.hoja_ruta_nro else 'No detectada' }}
+                    </div>
+                </div>
+
+                <div class="metric">
+                    <span class="metric-label">Distancia total</span>
+                    <div class="metric-value">{{ resumen.distancia_total_km }} <span class="metric-small">km</span></div>
+                </div>
+
+                <div class="metric">
+                    <span class="metric-label">Eventos analizados</span>
+                    <div class="metric-value">{{ resumen.total_eventos }}</div>
+                </div>
+            </div>
+
+            <div class="status-row">
+                <div class="badge ok">Cumplido exacto: {{ resumen.cumplidos_exactos }}</div>
+                <div class="badge warn">Pasó cerca: {{ resumen.paso_cerca }}</div>
+                <div class="badge bad">No pasó: {{ resumen.no_paso }}</div>
+            </div>
+
+            <div class="mini-card-grid">
+                <div class="mini-card">
+                    <h4>Total de paradas</h4>
+                    <p>{{ resumen.total_paradas }}</p>
+                </div>
+                <div class="mini-card">
+                    <h4>Regreso al punto de inicio</h4>
+                    <p>
+                        {% if resumen.regreso_al_inicio %}
+                            Sí
+                        {% else %}
+                            No
+                        {% endif %}
+                        {% if resumen.distancia_inicio_fin_m is not none %}
+                            — {{ resumen.distancia_inicio_fin_m }} m
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 class="section-title">Paradas ordenadas según aparición en el histórico</h2>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Orden</th>
+                            <th>Cliente</th>
+                            <th>Dirección</th>
+                            <th>Localidad</th>
+                            <th>Remito</th>
+                            <th>Estado</th>
+                            <th>Score</th>
+                            <th>Fecha evento</th>
+                            <th>Evento asociado</th>
+                            <th>Dirección interpretada</th>
+                            <th>Mapa</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in paradas %}
+                        <tr>
+                            <td>{{ p.orden }}</td>
+                            <td>{{ p.cliente }}</td>
+                            <td>{{ p.direccion }}</td>
+                            <td>{{ p.localidad }}</td>
+                            <td>{{ p.remito if p.remito else '-' }}</td>
+                            <td>
+                                {% if p.estado == 'Cumplido exacto' %}
+                                    <span class="status exacto">{{ p.estado }}</span>
+                                {% elif p.estado == 'Pasó cerca' %}
+                                    <span class="status cerca">{{ p.estado }}</span>
+                                {% else %}
+                                    <span class="status nopaso">{{ p.estado }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ p.score }}</td>
+                            <td>{{ p.fecha_evento if p.fecha_evento else '-' }}</td>
+                            <td>
+                                {% if p.evento_mas_cercano %}
+                                    <strong>{{ p.evento_mas_cercano.evento }}</strong>
+                                    <div class="muted">Ubicación: {{ p.evento_mas_cercano.ubicacion if p.evento_mas_cercano.ubicacion else '-' }}</div>
+                                    <div class="muted">Punto cercano: {{ p.evento_mas_cercano.punto_cercano if p.evento_mas_cercano.punto_cercano else '-' }}</div>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if p.evento_mas_cercano and p.evento_mas_cercano.direccion_inferida %}
+                                    {{ p.evento_mas_cercano.direccion_inferida }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if p.evento_mas_cercano %}
+                                    <a class="link" href="{{ p.evento_mas_cercano.link_mapa }}" target="_blank">Ver punto</a>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 class="section-title">Eventos detectados en el histórico</h2>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Evento</th>
+                            <th>Ubicación</th>
+                            <th>Punto cercano</th>
+                            <th>Dirección interpretada</th>
+                            <th>Coordenadas</th>
+                            <th>Google Maps</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for e in eventos %}
+                        <tr>
+                            <td>{{ e.fecha }}</td>
+                            <td>{{ e.evento }}</td>
+                            <td>{{ e.ubicacion if e.ubicacion else '-' }}</td>
+                            <td>{{ e.punto_cercano if e.punto_cercano else '-' }}</td>
+                            <td>{{ e.direccion_inferida if e.direccion_inferida else '-' }}</td>
+                            <td>{{ e.coordenadas[0] }}, {{ e.coordenadas[1] }}</td>
+                            <td><a class="link" href="{{ e.link_mapa }}" target="_blank">Ver punto</a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
