@@ -430,7 +430,7 @@
                             </td>
                             <td>
                                 {% if p.evento_mas_cercano %}
-                                    <a class="link" href="{{ p.evento_mas_cercano.link_mapa }}" target="_blank">Ver punto</a>
+                                <a class="link" href="{{ p.evento_mas_cercano.link_mapa }}" target="_blank" rel="noopener noreferrer">Ver punto</a>
                                 {% else %}
                                     -
                                 {% endif %}
@@ -466,7 +466,7 @@
                             <td>{{ e.punto_cercano if e.punto_cercano else '-' }}</td>
                             <td>{{ e.direccion_inferida if e.direccion_inferida else '-' }}</td>
                             <td>{{ e.coordenadas[0] }}, {{ e.coordenadas[1] }}</td>
-                            <td><a class="link" href="{{ e.link_mapa }}" target="_blank">Ver punto</a></td>
+                            <td><a class="link" href="{{ e.link_mapa }}" target="_blank" rel="noopener noreferrer">Ver punto</a></td>
                         </tr>
                         {% endfor %}
                     </tbody>
