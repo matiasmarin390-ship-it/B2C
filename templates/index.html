@@ -5,9 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Auditoría de hoja de ruta</title>
     <style>
-        * {
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
 
         body {
             margin: 0;
@@ -17,7 +15,7 @@
         }
 
         .page {
-            max-width: 1350px;
+            max-width: 1450px;
             margin: 30px auto;
             padding: 0 20px 40px;
         }
@@ -28,14 +26,6 @@
             box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
             padding: 28px;
             margin-bottom: 24px;
-        }
-
-        .header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-            flex-wrap: wrap;
         }
 
         .title {
@@ -85,7 +75,6 @@
             font-weight: 700;
             font-size: 15px;
             cursor: pointer;
-            transition: 0.2s ease;
         }
 
         .btn:hover {
@@ -128,7 +117,6 @@
             margin-bottom: 8px;
             font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: .3px;
         }
 
         .metric-value {
@@ -159,19 +147,35 @@
             font-weight: 700;
         }
 
-        .badge.ok {
-            background: #dcfce7;
-            color: #166534;
+        .badge.ok { background: #dcfce7; color: #166534; }
+        .badge.warn { background: #fef3c7; color: #92400e; }
+        .badge.bad { background: #fee2e2; color: #991b1b; }
+
+        .mini-card-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(220px, 1fr));
+            gap: 16px;
+            margin-top: 18px;
         }
 
-        .badge.warn {
-            background: #fef3c7;
-            color: #92400e;
+        .mini-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 16px;
         }
 
-        .badge.bad {
-            background: #fee2e2;
-            color: #991b1b;
+        .mini-card h4 {
+            margin: 0 0 10px;
+            font-size: 15px;
+            color: #334155;
+        }
+
+        .mini-card p {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 700;
+            color: #0f172a;
         }
 
         .table-wrap {
@@ -181,7 +185,7 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            min-width: 950px;
+            min-width: 1100px;
         }
 
         thead th {
@@ -213,20 +217,9 @@
             white-space: nowrap;
         }
 
-        .status.exacto {
-            background: #dcfce7;
-            color: #166534;
-        }
-
-        .status.cerca {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .status.nopaso {
-            background: #fee2e2;
-            color: #991b1b;
-        }
+        .status.exacto { background: #dcfce7; color: #166534; }
+        .status.cerca { background: #fef3c7; color: #92400e; }
+        .status.nopaso { background: #fee2e2; color: #991b1b; }
 
         .muted {
             color: #64748b;
@@ -244,64 +237,22 @@
             text-decoration: underline;
         }
 
-        .mini-card-grid {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(220px, 1fr));
-            gap: 16px;
-            margin-top: 18px;
-        }
-
-        .mini-card {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 14px;
-            padding: 16px;
-        }
-
-        .mini-card h4 {
-            margin: 0 0 10px;
-            font-size: 15px;
-            color: #334155;
-        }
-
-        .mini-card p {
-            margin: 0;
-            font-size: 15px;
-            font-weight: 700;
-            color: #0f172a;
-        }
-
         @media (max-width: 980px) {
-            .form-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .btn {
-                width: 100%;
-            }
-
-            .summary-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .mini-card-grid {
-                grid-template-columns: 1fr;
-            }
+            .form-grid { grid-template-columns: 1fr; }
+            .btn { width: 100%; }
+            .summary-grid { grid-template-columns: 1fr; }
+            .mini-card-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
     <div class="page">
         <div class="card">
-            <div class="header">
-                <div>
-                    <h1 class="title">Auditoría de hoja de ruta vs histórico</h1>
-                    <p class="subtitle">
-                        Subí el Excel de hoja de ruta y el Excel histórico para validar cumplimiento,
-                        orden real de paso, distancia total recorrida y estado de cada parada.
-                    </p>
-                </div>
-            </div>
+            <h1 class="title">Auditoría de hoja de ruta vs histórico</h1>
+            <p class="subtitle">
+                Subí el Excel de hoja de ruta y el Excel histórico para validar cumplimiento,
+                orden real de paso, distancia total recorrida y estado de cada parada.
+            </p>
 
             <form method="POST" enctype="multipart/form-data">
                 <div class="form-grid">
@@ -384,13 +335,15 @@
                             <th>Cliente</th>
                             <th>Dirección</th>
                             <th>Localidad</th>
+                            <th>Ubicación hoja</th>
                             <th>Remito</th>
                             <th>Estado</th>
                             <th>Score</th>
                             <th>Fecha evento</th>
                             <th>Evento asociado</th>
                             <th>Dirección interpretada</th>
-                            <th>Mapa</th>
+                            <th>Mapa dirección</th>
+                            <th>Mapa evento</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -400,6 +353,13 @@
                             <td>{{ p.cliente }}</td>
                             <td>{{ p.direccion }}</td>
                             <td>{{ p.localidad }}</td>
+                            <td>
+                                {% if p.link_direccion %}
+                                    <a class="link" href="{{ p.link_direccion }}" target="_blank" rel="noopener noreferrer">Ver dirección</a>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
                             <td>{{ p.remito if p.remito else '-' }}</td>
                             <td>
                                 {% if p.estado == 'Cumplido exacto' %}
@@ -429,8 +389,15 @@
                                 {% endif %}
                             </td>
                             <td>
-                                {% if p.evento_mas_cercano %}
-                                <a class="link" href="{{ p.evento_mas_cercano.link_mapa }}" target="_blank" rel="noopener noreferrer">Ver punto</a>
+                                {% if p.link_direccion %}
+                                    <a class="link" href="{{ p.link_direccion }}" target="_blank" rel="noopener noreferrer">Abrir</a>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if p.evento_mas_cercano and p.evento_mas_cercano.link_mapa %}
+                                    <a class="link" href="{{ p.evento_mas_cercano.link_mapa }}" target="_blank" rel="noopener noreferrer">Ver punto</a>
                                 {% else %}
                                     -
                                 {% endif %}
@@ -466,7 +433,13 @@
                             <td>{{ e.punto_cercano if e.punto_cercano else '-' }}</td>
                             <td>{{ e.direccion_inferida if e.direccion_inferida else '-' }}</td>
                             <td>{{ e.coordenadas[0] }}, {{ e.coordenadas[1] }}</td>
-                            <td><a class="link" href="{{ e.link_mapa }}" target="_blank" rel="noopener noreferrer">Ver punto</a></td>
+                            <td>
+                                {% if e.link_mapa %}
+                                    <a class="link" href="{{ e.link_mapa }}" target="_blank" rel="noopener noreferrer">Ver punto</a>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
